@@ -1,5 +1,5 @@
 from django.urls import path
-import os
+# import os
 
 from . import views
 from .modular_views.rooms import rooms

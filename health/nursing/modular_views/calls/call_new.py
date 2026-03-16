@@ -12,8 +12,6 @@ def new_call(bed):
             active_bed = Bed.objects.select_for_update().get(id_bed=bed, active=True)
         except Exception:
             active_bed = {}
-
-        if active_bed == {}:
             print(f"new_call: bed {bed} not found or not active")
             return ws_load()
 

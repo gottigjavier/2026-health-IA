@@ -1,10 +1,10 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
 import json
 import logging
-
-logger = logging.getLogger(__name__)
 from .modular_views.calls.call_new import new_call
 from asgiref.sync import sync_to_async
+
+logger = logging.getLogger(__name__)
 
 
 class appConsumer(AsyncWebsocketConsumer):
@@ -72,7 +72,7 @@ class callConsumer(AsyncWebsocketConsumer):
         data = json.loads(text_data)
         print("consumer, receive, data -> ", data)
         if data["key"] == "this&is$a$key&to?prevent?hacking":
-            if not ",0" in data["bed"]:
+            if ",0" not in data["bed"]:
                 data["state"] = True
             else:
                 data["state"] = False
@@ -90,7 +90,7 @@ class callConsumer(AsyncWebsocketConsumer):
                     from .modular_views.app.app_ws_update import ws_load
 
                     ans_call = await sync_to_async(ws_load)
-                except:
+                except Exception:
                     from .modular_views.calls.call_answered import answ_call
 
                     ans_call = await sync_to_async(answ_call)(bed)
