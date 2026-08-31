@@ -1,9 +1,10 @@
 from django.contrib.auth import authenticate
+from django.conf import settings
 from django.http import JsonResponse
 from django.db import IntegrityError
 from ninja import NinjaAPI, ModelSchema, Schema
 from typing import Optional, List
-from datetime import datetime
+import logging
 
 # ninja_jwt is optional in this environment; provide a safe fallback when
 # the package isn't installed so module import won't crash during tests.
@@ -30,11 +31,15 @@ except Exception:
 
 
 from .models import User, Patient, Bed, Task, Call, Event
+from .choices import BedState, CallState, TaskState
 from .modular_views.data_analytics import save_event
+from .utils.dates import dt_parse, dt_now, dt_serialize
 import paho.mqtt.client as mqtt
 import json
 from urllib.parse import parse_qs
 from django.views.decorators.csrf import csrf_exempt
+
+logger = logging.getLogger(__name__)
 
 jwtauth = JWTAuth()
 api = NinjaAPI(auth=jwtauth)
@@ -53,14 +58,14 @@ def send_mqtt_cancel_call(bed_id_str):
         message = {
             "state": False,
             "id": bed_id_str,
-            "key": "this&is$a$key&to?prevent?hacking",
+            "key": settings.CALL_SECRET_KEY,
         }
 
         client.publish("mqtt/call/", json.dumps(message))
         client.disconnect()
-        print(f"✓ MQTT Cancel message sent for: {bed_id_str}")
+        logger.info("MQTT Cancel message sent for: %s", bed_id_str)
     except Exception:
-        print("✗ Error sending MQTT cancel")
+        logger.error("Error sending MQTT cancel")
 
 
 class UserSchema(ModelSchema):
@@ -222,30 +227,6 @@ def login(request, data: LoginSchema):
             "user": user,
         }
     return JsonResponse({"error": "Invalid credentials"}, status=401)
-
-
-# Temporary debug endpoint to inspect incoming request payloads (safe to remove later)
-@api.post("/auth/debug", auth=None)
-def auth_debug(request):
-    django_req = getattr(request, "_request", request)
-    info = {
-        "content_type": getattr(request, "content_type", None),
-        "headers": {k: v for k, v in getattr(request, "headers", {}).items()},
-        "body_len": len(getattr(django_req, "body", b""))
-        if getattr(django_req, "body", None)
-        else 0,
-    }
-    try:
-        raw = getattr(django_req, "body", b"") or b""
-        info["raw_snippet"] = raw.decode(errors="ignore")[:200]
-    except Exception:
-        info["raw_snippet"] = ""
-    try:
-        post = getattr(django_req, "POST", {}) or {}
-        info["post_keys"] = list(post.keys())
-    except Exception:
-        info["post_keys"] = []
-    return info
 
 
 @api.post("/auth/register", response=UserSchema, auth=None)
@@ -493,7 +474,7 @@ def django_register(request):
             "is_leader": user.is_leader,
             "role": getattr(user, "role", "nurse"),
             "image": getattr(user, "image", None) and str(user.image.url),
-            "date_joined": user.date_joined.isoformat()
+            "date_joined": dt_serialize(user.date_joined)
             if getattr(user, "date_joined", None)
             else None,
         }
@@ -584,26 +565,9 @@ def create_bed(request, data: Optional[BedInputSchema] = None, payload: dict = N
         short_diagnosis=parsed.get("diagnosis") or "No Diagnosis",
     )
 
-    # parse datetimes permissively
+    # parse datetimes permissively (aware, hora local de Argentina)
     def _parse_dt(val):
-        if not val:
-            return None
-        try:
-            s = str(val).replace("T", " ")
-            if s.endswith("Z"):
-                s = s[:-1]
-            try:
-                return datetime.fromisoformat(s)
-            except Exception:
-                try:
-                    return datetime.strptime(s, "%Y-%m-%d %H:%M")
-                except Exception:
-                    try:
-                        return datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
-                    except Exception:
-                        return None
-        except Exception:
-            return None
+        return dt_parse(val)
 
     occupied_dt = _parse_dt(parsed.get("occupiedDateTime"))
     planed_vac = _parse_dt(parsed.get("planedVacate"))
@@ -612,7 +576,7 @@ def create_bed(request, data: Optional[BedInputSchema] = None, payload: dict = N
         id_bed=parsed.get("roomBedId"),
         bed_patient=patient,
         active=True,
-        bed_state="occupied",
+        bed_state=BedState.OCCUPIED,
         occupied_time=occupied_dt,
         planed_vacate=planed_vac,
         action_done_by=parsed.get("doneBy") or "Anónimo",
@@ -649,16 +613,12 @@ def update_bed(request, bed_id: int, data: BedEditSchema):
     )
     if data.occupiedDateTime and data.occupiedDateTime.strip():
         try:
-            bed.occupied_time = datetime.strptime(
-                data.occupiedDateTime.replace("T", " "), "%Y-%m-%d %H:%M"
-            )
+            bed.occupied_time = dt_parse(data.occupiedDateTime)
         except Exception:
             pass
     if data.planedVacate and data.planedVacate.strip():
         try:
-            bed.planed_vacate = datetime.strptime(
-                data.planedVacate.replace("T", " "), "%Y-%m-%d %H:%M"
-            )
+            bed.planed_vacate = dt_parse(data.planedVacate)
         except Exception:
             pass
     if data.doneBy and data.doneBy.strip():
@@ -711,17 +671,17 @@ def vacate_bed(request, data: VacateSchema):
     Task.objects.filter(bed=bed, active=True).delete()
 
     # Cerrar todas las llamadas activas de esta cama
-    Call.objects.filter(bed=bed).exclude(state="closed").update(state="closed")
+    Call.objects.filter(bed=bed).exclude(state=CallState.CLOSED).update(
+        state=CallState.CLOSED
+    )
 
     # Enviar notificación MQTT para cancelar llamadas en la habitación
     send_mqtt_cancel_call(f"{room_id},0")
 
     patient.inpatient = False
     bed.active = False
-    bed.bed_state = "free"
-    bed.vacate_time = datetime.strptime(
-        data.vacateDT.replace("T", " "), "%Y-%m-%d %H:%M"
-    )
+    bed.bed_state = BedState.FREE
+    bed.vacate_time = dt_parse(data.vacateDT)
     bed.action_done_by = data.doneBy if data.doneBy else "Anónimo"
     patient.save()
     bed.save()
@@ -759,9 +719,7 @@ def list_tasks(request):
 def create_task(request, data: TaskInputSchema):
     bed = Bed.objects.get(id=data.bed_id)
     # Create primary task
-    programed_time_obj = datetime.strptime(
-        data.programed_time.replace("T", " "), "%Y-%m-%d %H:%M"
-    )
+    programed_time_obj = dt_parse(data.programed_time)
     task = Task.objects.create(
         bed=bed,
         task=data.task,
@@ -772,19 +730,19 @@ def create_task(request, data: TaskInputSchema):
         if hasattr(data, "repeat_lapse_unit")
         else None,
         repeat_until=(
-            datetime.strptime(data.repeat_until.replace("T", " "), "%Y-%m-%d %H:%M")
+            dt_parse(data.repeat_until)
             if getattr(data, "repeat_until", None)
             else None
         ),
         active=True,
         # compute initial state based on programed_time
         state=(
-            "passed"
-            if programed_time_obj.timestamp() < datetime.now().timestamp()
+            TaskState.PASSED
+            if programed_time_obj.timestamp() < dt_now().timestamp()
             else (
-                "soon"
-                if programed_time_obj.timestamp() - datetime.now().timestamp() <= 600
-                else "later"
+                TaskState.SOON
+                if programed_time_obj.timestamp() - dt_now().timestamp() <= 600
+                else TaskState.LATER
             )
         ),
         programed_by=request.user.username,
@@ -826,7 +784,7 @@ def create_task(request, data: TaskInputSchema):
             )
         except Exception as exc:
             # don't fail the main request if repeat generation has an issue
-            print(f"Error generating repeated tasks: {exc}")
+            logger.error("Error generating repeated tasks: %s", exc)
 
     try:
         from .modular_views.app.app_ws_update import app_ws_update
@@ -862,7 +820,7 @@ def update_task(request, task_id: int, data: TaskEditSchema):
         return JsonResponse({"error": "Task not found"}, status=404)
     # Log incoming update for easier debugging of 422/parse issues
     try:
-        print(f"update_task called with: task_id={task_id}, data={data}")
+        logger.debug("update_task called with: task_id=%s, data=%s", task_id, data)
     except Exception:
         pass
 
@@ -882,43 +840,14 @@ def update_task(request, task_id: int, data: TaskEditSchema):
     if getattr(data, "programed_time", None):
         # accept several ISO-like formats, be permissive
         pt_raw = data.programed_time
-        pt = None
-        try:
-            pt_str = pt_raw.replace("T", " ")
-            # handle trailing Z as UTC
-            if pt_str.endswith("Z"):
-                pt_str = pt_str[:-1] + "+00:00"
-            try:
-                pt = datetime.fromisoformat(pt_str)
-            except Exception:
-                try:
-                    pt = datetime.strptime(pt_str, "%Y-%m-%d %H:%M")
-                except Exception as exc:
-                    try:
-                        pt = datetime.strptime(pt_str, "%Y-%m-%d %H:%M:%S")
-                    except Exception:
-                        print(f"Failed parsing programed_time '{pt_raw}': {exc}")
-                        raise
-        except Exception:
+        pt = dt_parse(pt_raw)
+        if pt is None:
             # fallback to now to avoid failing the whole request; caller may retry
-            pt = datetime.now()
+            pt = dt_now()
         task.programed_time = pt
     # support marking task as done from the edit modal
     if getattr(data, "done_time", None):
-        dt_raw = data.done_time
-        try:
-            dt_str = dt_raw.replace("T", " ")
-            if dt_str.endswith("Z"):
-                dt_str = dt_str[:-1] + "+00:00"
-            try:
-                task.done_time = datetime.fromisoformat(dt_str)
-            except Exception:
-                try:
-                    task.done_time = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
-                except Exception:
-                    task.done_time = datetime.now()
-        except Exception:
-            task.done_time = datetime.now()
+        task.done_time = dt_parse(data.done_time) or dt_now()
         task.active = False
         task.task_done_by = request.user.username
     if getattr(data, "active", None) is not None:
@@ -932,36 +861,9 @@ def update_task(request, task_id: int, data: TaskEditSchema):
     # After updating the task, adjust the bed state if task was marked as done/completed
     if getattr(data, "done_time", None) or (not getattr(data, "active", None)):
         try:
-            from .models import Call
+            from .modular_views.beds.bed_state import refresh_bed_state
 
-            bed = task.bed
-            if bed and bed.active:
-                # Check remaining active tasks for this bed (all states)
-                remaining_tasks = Task.objects.filter(bed=bed, active=True)
-                has_passed = remaining_tasks.filter(state="passed").exists()
-                has_soon = remaining_tasks.filter(state="soon").exists()
-                has_later = remaining_tasks.filter(state="later").exists()
-
-                # Check for active calls
-                has_active_call = Call.objects.filter(bed=bed, state="active").exists()
-
-                if has_active_call:
-                    if has_passed:
-                        bed.bed_state = "call-task"
-                    elif has_soon or has_later:
-                        bed.bed_state = "call"
-                    else:
-                        bed.bed_state = "call"
-                else:
-                    if has_passed:
-                        bed.bed_state = "task"
-                    elif has_soon:
-                        bed.bed_state = "soon"
-                    elif has_later:
-                        bed.bed_state = "later"
-                    else:
-                        bed.bed_state = "occupied"
-                bed.save()
+            refresh_bed_state(task.bed)
         except Exception:
             pass
 
@@ -995,41 +897,14 @@ def complete_task(request, task_id: int):
         f"task.state: {task.state}; task.task_done_by: {task.task_done_by}"
     )
     task.active = False
-    task.done_time = datetime.now()
+    task.done_time = dt_now()
     task.task_done_by = request.user.username
     task.save()
     # After marking the task completed, adjust the bed state if needed.
     try:
-        from .models import Call
+        from .modular_views.beds.bed_state import refresh_bed_state
 
-        bed = task.bed
-        if bed and bed.active:
-            # Check remaining active tasks for this bed (all states)
-            remaining_tasks = Task.objects.filter(bed=bed, active=True)
-            has_passed = remaining_tasks.filter(state="passed").exists()
-            has_soon = remaining_tasks.filter(state="soon").exists()
-            has_later = remaining_tasks.filter(state="later").exists()
-
-            # Check for active calls
-            has_active_call = Call.objects.filter(bed=bed, state="active").exists()
-
-            if has_active_call:
-                if has_passed:
-                    bed.bed_state = "call-task"
-                elif has_soon or has_later:
-                    bed.bed_state = "call"
-                else:
-                    bed.bed_state = "call"
-            else:
-                if has_passed:
-                    bed.bed_state = "task"
-                elif has_soon:
-                    bed.bed_state = "soon"
-                elif has_later:
-                    bed.bed_state = "later"
-                else:
-                    bed.bed_state = "occupied"
-            bed.save()
+        refresh_bed_state(task.bed)
     except Exception:
         # don't let bed-update failures break API
         pass
@@ -1067,28 +942,10 @@ def delete_task(request, task_id: int):
         task.delete()
 
         # After deleting the task, adjust the bed state if needed.
-        if bed and bed.active:
-            # Check remaining active tasks for this bed
-            remaining_tasks = Task.objects.filter(bed=bed, active=True)
-            has_passed = remaining_tasks.filter(state="passed").exists()
-            has_soon = remaining_tasks.filter(state="soon").exists()
+        from .modular_views.beds.bed_state import refresh_bed_state
 
-            # Check for active calls
-            has_active_call = Call.objects.filter(bed=bed, state="active").exists()
-
-            if has_active_call:
-                if has_passed:
-                    bed.bed_state = "call-task"
-                else:
-                    bed.bed_state = "call"
-            else:
-                if has_passed:
-                    bed.bed_state = "task"
-                elif has_soon:
-                    bed.bed_state = "soon"
-                else:
-                    bed.bed_state = "occupied"
-            bed.save()
+        # "later" tasks are not considered after deleting the active one
+        refresh_bed_state(bed, consider_later=False)
     except Task.DoesNotExist:
         pass
 
@@ -1120,27 +977,17 @@ def answer_call(request, call_id: int):
         f"call.response_time: {call.response_time}; call.state: {call.state}; "
         f"call.action_done_by: {call.action_done_by}"
     )
-    call.state = "answered"
-    call.response_time = datetime.now()
+    call.state = CallState.ANSWERED
+    call.response_time = dt_now()
     call.action_done_by = request.user.username
     call.save()
 
     # Update bed_state after answering the call
     try:
-        bed = call.bed
-        if bed and bed.active:
-            from .models import Task
+        from .modular_views.beds.bed_state import refresh_bed_state
 
-            bed_tasks = Task.objects.filter(bed=bed, active=True)
-            has_passed = any(t.state == "passed" for t in bed_tasks)
-            has_soon = any(t.state == "soon" for t in bed_tasks)
-            if has_passed:
-                bed.bed_state = "task"
-            elif has_soon:
-                bed.bed_state = "soon"
-            else:
-                bed.bed_state = "occupied"
-            bed.save()
+        # call is no longer active; "later" tasks not considered after answering
+        refresh_bed_state(call.bed, consider_later=False, has_active_call=False)
     except Exception:
         pass
 
@@ -1170,27 +1017,17 @@ def close_call(request, call_id: int, data: CallResponseSchema):
         f"call.response_time: {call.response_time}; call.state: {call.state}; "
         f"call.response: {call.response}; call.action_done_by: {call.action_done_by}"
     )
-    call.state = "closed"
+    call.state = CallState.CLOSED
     call.response = data.response
     call.action_done_by = request.user.username
     call.save()
 
     # Update bed_state after closing the call
     try:
-        bed = call.bed
-        if bed and bed.active:
-            from .models import Task
+        from .modular_views.beds.bed_state import refresh_bed_state
 
-            bed_tasks = Task.objects.filter(bed=bed, active=True)
-            has_passed = any(t.state == "passed" for t in bed_tasks)
-            has_soon = any(t.state == "soon" for t in bed_tasks)
-            if has_passed:
-                bed.bed_state = "task"
-            elif has_soon:
-                bed.bed_state = "soon"
-            else:
-                bed.bed_state = "occupied"
-            bed.save()
+        # call is no longer active; "later" tasks not considered after closing
+        refresh_bed_state(call.bed, consider_later=False, has_active_call=False)
     except Exception:
         pass
 
@@ -1227,12 +1064,8 @@ def get_rooms(request):
             "id_bed": bed.id_bed,
             "active": bed.active,
             "bed_state": bed.bed_state,
-            "occupied_time": bed.occupied_time.isoformat()
-            if bed.occupied_time
-            else None,
-            "planed_vacate": bed.planed_vacate.isoformat()
-            if bed.planed_vacate
-            else None,
+            "occupied_time": dt_serialize(bed.occupied_time),
+            "planed_vacate": dt_serialize(bed.planed_vacate),
             "action_done_by": bed.action_done_by,
         }
         if bed.bed_patient:
@@ -1258,12 +1091,10 @@ def initial_load(request):
     from .modular_views.calls.call_mqtt import mqtt_service
     from .modular_views.tasks.task_ws import tasks_ws_update
     from .modular_views.app.app_ws_update import app_ws_update
-    from .modular_views.data_analytics import data_analytics
 
     mqtt_service()
     tasks_ws_update()
     app_ws_update()
-    data_analytics()
 
     return load()
 

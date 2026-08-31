@@ -1,7 +1,8 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from datetime import datetime
+from django.utils import timezone
 from health.nursing.models import Event, Bed, Patient, Task, Call
+from health.nursing.choices import BedState, CallState, TaskState
 from health.nursing.modular_views.data_analytics import save_event
 
 
@@ -19,14 +20,14 @@ class EventModelTest(TestCase):
             short_diagnosis="Test Diagnosis",
         )
         self.bed = Bed.objects.create(
-            id_bed="1-1", bed_patient=self.patient, active=True, bed_state="occupied"
+            id_bed="1-1", bed_patient=self.patient, active=True, bed_state=BedState.OCCUPIED
         )
 
     def test_create_event(self):
         event = Event.objects.create(
             loged_user="testuser",
             action="test action",
-            time=datetime.now(),
+            time=timezone.now(),
             before="before state",
             after="after state",
         )
@@ -58,7 +59,7 @@ class EventModelTest(TestCase):
         event = Event.objects.create(
             loged_user="testuser",
             action="test action",
-            time=datetime.now(),
+            time=timezone.now(),
             before="before",
             after="after",
         )
@@ -76,7 +77,7 @@ class EventTrackingTest(TestCase):
             name="Test Patient", social_security_number="12345"
         )
         self.bed = Bed.objects.create(
-            id_bed="1-1", bed_patient=self.patient, active=True, bed_state="occupied"
+            id_bed="1-1", bed_patient=self.patient, active=True, bed_state=BedState.OCCUPIED
         )
 
     def test_event_created_on_task_creation(self):
@@ -84,9 +85,9 @@ class EventTrackingTest(TestCase):
         Task.objects.create(
             bed=self.bed,
             task="Test Task",
-            programed_time=datetime.now(),
+            programed_time=timezone.now(),
             active=True,
-            state="later",
+            state=TaskState.LATER,
             programed_by="testuser",
         )
         self.assertEqual(Event.objects.count(), initial_count + 1)
@@ -95,15 +96,15 @@ class EventTrackingTest(TestCase):
         task = Task.objects.create(
             bed=self.bed,
             task="Test Task",
-            programed_time=datetime.now(),
+            programed_time=timezone.now(),
             active=True,
-            state="later",
+            state=TaskState.LATER,
             programed_by="testuser",
         )
         initial_count = Event.objects.count()
 
         task.active = False
-        task.done_time = datetime.now()
+        task.done_time = timezone.now()
         task.task_done_by = "testuser"
         task.save()
 
@@ -111,12 +112,12 @@ class EventTrackingTest(TestCase):
 
     def test_event_created_on_call_answer(self):
         call = Call.objects.create(
-            bed=self.bed, call_time=datetime.now(), state="active"
+            bed=self.bed, call_time=timezone.now(), state=CallState.ACTIVE
         )
         initial_count = Event.objects.count()
 
-        call.state = "answered"
-        call.response_time = datetime.now()
+        call.state = CallState.ANSWERED
+        call.response_time = timezone.now()
         call.action_done_by = "testuser"
         call.save()
 
@@ -127,25 +128,25 @@ class EventTrackingTest(TestCase):
             name="Patient 2", social_security_number="67890"
         )
         bed2 = Bed.objects.create(
-            id_bed="1-2", bed_patient=patient2, active=True, bed_state="free"
+            id_bed="1-2", bed_patient=patient2, active=True, bed_state=BedState.FREE
         )
         initial_count = Event.objects.count()
 
-        bed2.bed_state = "occupied"
+        bed2.bed_state = BedState.OCCUPIED
         bed2.save()
 
         self.assertEqual(Event.objects.count(), initial_count + 1)
 
     def test_event_created_on_bed_vacate(self):
-        self.bed.bed_state = "free"
+        self.bed.bed_state = BedState.FREE
         self.bed.active = False
         self.bed.save()
 
         initial_count = Event.objects.count()
 
-        self.bed.bed_state = "free"
+        self.bed.bed_state = BedState.FREE
         self.bed.active = False
-        self.bed.vacate_time = datetime.now()
+        self.bed.vacate_time = timezone.now()
         self.bed.save()
 
         self.assertEqual(Event.objects.count(), initial_count + 1)

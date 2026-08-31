@@ -1,6 +1,7 @@
 from django.http import JsonResponse
 from ..data_analytics import save_event
 from ...models import Call
+from ...choices import CallState
 from ..app.app_load import load
 import json
 
@@ -13,7 +14,7 @@ def call_close(request):
     call_answered_by = data["answeredBy"]
     call = Call.objects.get(id=call_id)
     if call:
-        call.state = "closed"
+        call.state = CallState.CLOSED
         call.response = (
             call_response
             if call_response != ""

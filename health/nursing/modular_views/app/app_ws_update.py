@@ -3,6 +3,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.core.serializers.json import DjangoJSONEncoder
 from ...models import Bed, Patient, Task, Call
+from ...choices import CallState
 import json
 from ..beds.beds_serialized import serial_beds
 
@@ -13,7 +14,7 @@ def ws_load():
     beds = Bed.objects.filter(active=True).all()
     patients = Patient.objects.filter(inpatient=True).all()
     tasks = Task.objects.filter(active=True).order_by("programed_time").all()
-    calls = Call.objects.exclude(state="closed").order_by("id").all()
+    calls = Call.objects.exclude(state=CallState.CLOSED).order_by("id").all()
     beds_list = serial_beds(beds)
     if patients:
         serialized_patients = [patient.serialize() for patient in patients]
@@ -44,15 +45,13 @@ def ws_load_encoded():
 def app_ws_update():
     all_data = json.loads(ws_load_encoded())
     layer = get_channel_layer()
-    # Print payload summary for debugging (use print so it appears on container stdout)
+    # Log payload summary for debugging
     try:
-        print(
-            "app_ws_update payload: beds=%d calls=%d tasks=%d"
-            % (
-                len(all_data.get("beds", [])),
-                len(all_data.get("calls", [])),
-                len(all_data.get("tasks", [])),
-            )
+        logger.info(
+            "app_ws_update payload: beds=%d calls=%d tasks=%d",
+            len(all_data.get("beds", [])),
+            len(all_data.get("calls", [])),
+            len(all_data.get("tasks", [])),
         )
     except Exception:
         pass

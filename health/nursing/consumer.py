@@ -1,7 +1,14 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
 import json
 import logging
+from django.conf import settings
 from .modular_views.calls.call_new import new_call
+from .ws_auth import (
+    extract_token_from_scope,
+    authenticate_ws_token,
+    WS_CLOSE_CODE_MISSING_TOKEN,
+    WS_CLOSE_CODE_INVALID_TOKEN,
+)
 from asgiref.sync import sync_to_async
 
 logger = logging.getLogger(__name__)
@@ -9,7 +16,17 @@ logger = logging.getLogger(__name__)
 
 class appConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        # print(self.scope)
+        token = extract_token_from_scope(self.scope)
+        if not token:
+            await self.close(code=WS_CLOSE_CODE_MISSING_TOKEN)
+            return
+
+        user = authenticate_ws_token(token)
+        if user is None:
+            await self.close(code=WS_CLOSE_CODE_INVALID_TOKEN)
+            return
+
+        self.scope["user"] = user
         self.groupname = "appboard"
         await self.channel_layer.group_add(
             self.groupname,
@@ -18,10 +35,12 @@ class appConsumer(AsyncWebsocketConsumer):
         await self.accept()
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(
-            self.groupname,
-            self.channel_name,
-        )
+        groupname = getattr(self, "groupname", None)
+        if groupname is not None:
+            await self.channel_layer.group_discard(
+                groupname,
+                self.channel_name,
+            )
         pass
         # await self.disconnect()
 
@@ -52,7 +71,17 @@ class appConsumer(AsyncWebsocketConsumer):
 
 class callConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        # print(self.scope)
+        token = extract_token_from_scope(self.scope)
+        if not token:
+            await self.close(code=WS_CLOSE_CODE_MISSING_TOKEN)
+            return
+
+        user = authenticate_ws_token(token)
+        if user is None:
+            await self.close(code=WS_CLOSE_CODE_INVALID_TOKEN)
+            return
+
+        self.scope["user"] = user
         self.groupname = "callsboard"
         await self.channel_layer.group_add(
             self.groupname,
@@ -61,50 +90,56 @@ class callConsumer(AsyncWebsocketConsumer):
         await self.accept()
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(
-            self.groupname,
-            self.channel_name,
-        )
+        groupname = getattr(self, "groupname", None)
+        if groupname is not None:
+            await self.channel_layer.group_discard(
+                groupname,
+                self.channel_name,
+            )
         pass
         # await self.disconnect()
 
     async def receive(self, text_data):
         data = json.loads(text_data)
-        print("consumer, receive, data -> ", data)
-        if data["key"] == "this&is$a$key&to?prevent?hacking":
-            if ",0" not in data["bed"]:
-                data["state"] = True
-            else:
-                data["state"] = False
-            if data["state"] is True:
-                key = data["key"]
-                state = data["state"]
-                bed = data["bed"]
-                n_call = await sync_to_async(new_call)(bed)
-                call = {"key": key, "state": state, "bed": bed, "call": n_call}
-            else:
-                key = data["key"]
-                state = data["state"]
-                bed = data["bed"]
-                try:
-                    from .modular_views.app.app_ws_update import ws_load
 
-                    ans_call = await sync_to_async(ws_load)
-                except Exception:
-                    from .modular_views.calls.call_answered import answ_call
-
-                    ans_call = await sync_to_async(answ_call)(bed)
-                # for dev test usin rooms.js need send parameter bed
-                # --> ans_call = await sync_to_async(answ_call)(bed)
-                # for prod using only mosquitto just use ws_load
-                # --> from .modular_views.app.app_ws_update import ws_load
-                # --> ans_call = await sync_to_async(ws_load)
-                call = {"key": key, "state": state, "bed": bed, "call": ans_call}
-            await self.channel_layer.group_send(
-                self.groupname, {"type": "deprocessing", "call": call}
+        if data.get("key") != settings.CALL_SECRET_KEY:
+            logger.warning(
+                "callConsumer: rejected message with invalid key from bed=%s",
+                data.get("bed", "<missing>"),
             )
+            return
+
+        if ",0" not in data["bed"]:
+            data["state"] = True
         else:
-            print("Warning!!! Possible hacking!!")
+            data["state"] = False
+        if data["state"] is True:
+            key = data["key"]
+            state = data["state"]
+            bed = data["bed"]
+            n_call = await sync_to_async(new_call)(bed)
+            call = {"key": key, "state": state, "bed": bed, "call": n_call}
+        else:
+            key = data["key"]
+            state = data["state"]
+            bed = data["bed"]
+            try:
+                from .modular_views.app.app_ws_update import ws_load
+
+                ans_call = await sync_to_async(ws_load)
+            except Exception:
+                from .modular_views.calls.call_answered import answ_call
+
+                ans_call = await sync_to_async(answ_call)(bed)
+            # for dev test usin rooms.js need send parameter bed
+            # --> ans_call = await sync_to_async(answ_call)(bed)
+            # for prod using only mosquitto just use ws_load
+            # --> from .modular_views.app.app_ws_update import ws_load
+            # --> ans_call = await sync_to_async(ws_load)
+            call = {"key": key, "state": state, "bed": bed, "call": ans_call}
+        await self.channel_layer.group_send(
+            self.groupname, {"type": "deprocessing", "call": call}
+        )
 
     async def deprocessing(self, event):
         call = event["call"]
@@ -128,7 +163,17 @@ class callConsumer(AsyncWebsocketConsumer):
 
 class taskConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        # print(self.scope)
+        token = extract_token_from_scope(self.scope)
+        if not token:
+            await self.close(code=WS_CLOSE_CODE_MISSING_TOKEN)
+            return
+
+        user = authenticate_ws_token(token)
+        if user is None:
+            await self.close(code=WS_CLOSE_CODE_INVALID_TOKEN)
+            return
+
+        self.scope["user"] = user
         self.groupname = "tasksboard"
         await self.channel_layer.group_add(
             self.groupname,
@@ -137,10 +182,12 @@ class taskConsumer(AsyncWebsocketConsumer):
         await self.accept()
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(
-            self.groupname,
-            self.channel_name,
-        )
+        groupname = getattr(self, "groupname", None)
+        if groupname is not None:
+            await self.channel_layer.group_discard(
+                groupname,
+                self.channel_name,
+            )
         pass
         # await self.disconnect()
 

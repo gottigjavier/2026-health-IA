@@ -1,3 +1,6 @@
+from ...utils.dates import dt_serialize
+
+
 def serial_beds(beds):
     beds_list = []
     if beds:
@@ -5,12 +8,8 @@ def serial_beds(beds):
             pk_id = bed.id
             bed_id = bed.id_bed
             bed_active = bed.active
-            bed_occupied_time = (
-                bed.occupied_time.isoformat() if bed.occupied_time else None
-            )
-            bed_planed_vacate = (
-                bed.planed_vacate.isoformat() if bed.planed_vacate else None
-            )
+            bed_occupied_time = dt_serialize(bed.occupied_time)
+            bed_planed_vacate = dt_serialize(bed.planed_vacate)
             bed_state = bed.bed_state
             # patient can be None if bed has no patient assigned
             if bed.bed_patient:

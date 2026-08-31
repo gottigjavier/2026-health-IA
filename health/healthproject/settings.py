@@ -37,7 +37,11 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env.str("SECRET_KEY", default="myrealsecretkey")
+# SECRET_KEY es OBLIGATORIA (sin default): si el entorno no la provee,
+# Django falla al arrancar en lugar de usar una clave hardcodeada en el
+# código versionado. Un default en el repo sería un secreto conocido por
+# cualquiera con acceso al código. Definila via variable de entorno o .env.
+SECRET_KEY = env.str("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False  # env.bool('DEBUG', default=True)
@@ -170,13 +174,13 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"  #'es-ar'
 
-TIME_ZONE = "Etc/GMT+3"  # 'UTC'  #'America/Argentina/Buenos_Aires'
+TIME_ZONE = "America/Argentina/Buenos_Aires"  # 'UTC'  #'Etc/GMT+3' era INCORRECTO (GMT-3) y no maneja verano
 
 USE_I18N = True
 
 USE_L10N = True
 
-USE_TZ = False
+USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
@@ -256,6 +260,15 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
 ]
+
+# Shared secret used to authenticate device/button messages on the
+# WebSocket call channel and MQTT call topic.  The physical button's
+# firmware must be configured with the same value.
+# Set via environment variable CALL_SECRET_KEY.
+CALL_SECRET_KEY = env.str(
+    "CALL_SECRET_KEY",
+    default="CHANGE-ME-IN-PRODUCTION",
+)
 
 """ 
 print("BASE_DIR: ", BASE_DIR)

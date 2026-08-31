@@ -19,9 +19,7 @@ export default function Call({ call, callBedAndIndex}){
     // Setup the new Howl.
     const sounder = new Howl({
         src: [sounds],
-        onload: () => console.log('Sound loaded for bed:', call.bed),
-        onplay: () => console.log('Sound playing for bed:', call.bed),
-        onloaderror: (id, err) => console.log('Sound load error:', err)
+        onloaderror: (id, err) => console.error('Sound load error:', err)
     });
 
     useEffect(() => {
@@ -37,7 +35,6 @@ export default function Call({ call, callBedAndIndex}){
         if (call.state !== 'active') return;
         
         const playSound = () => {
-            console.log('Playing sound for bed:', call.bed);
             sounder.play();
         };
         
@@ -93,7 +90,7 @@ export default function Call({ call, callBedAndIndex}){
             })
             .then(() => fetchLoad())
             .then(data => setAppState(data))
-            .catch(error => console.log(`An ERROR occurred while saving the Closed Call: ${error}`));
+            .catch(error => console.error(`An ERROR occurred while saving the Closed Call: ${error}`));
         })
     }    
 // ---------------------- End Closed call --------------------------------

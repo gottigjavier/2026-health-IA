@@ -21,8 +21,11 @@ function call(call_id){
     else{
         state = false;
     }
+    const key = document.querySelector('meta[name="call-secret"]')
+        ? document.querySelector('meta[name="call-secret"]').content
+        : '';
     callSocket.send(JSON.stringify({
-        'key': 'this&is$a$key&to?prevent?hacking',
+        'key': key,
         'state': state,
         'bed': call_id
     }))

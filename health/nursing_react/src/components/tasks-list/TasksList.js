@@ -21,7 +21,8 @@ function TasksList({places}){
     });
     
     useEffect(()=> {
-    tasksManager({handleTasks}) // task websocked connect          
+        const socket = tasksManager({handleTasks}) // task websocked connect
+        return () => { if (socket) socket.close(); }
     },[])
     
     useEffect(()=> {

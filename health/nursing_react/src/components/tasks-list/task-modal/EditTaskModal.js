@@ -79,7 +79,7 @@ function EditTaskModal({ hideTaskModal, show, task, taskBedAndIndex}) {
             updateTask(taskId, updateData)
             .then(() => fetchLoad())
             .then(data => setAppState(data))
-            .catch(error => console.log(`An ERROR occurred while saving the Edited Task: ${error}`));
+            .catch(error => console.error(`An ERROR occurred while saving the Edited Task: ${error}`));
         });
         setTextResponse('')
         hideTaskModal()
@@ -92,7 +92,7 @@ function EditTaskModal({ hideTaskModal, show, task, taskBedAndIndex}) {
             completeTask(task.id)
             .then(() => fetchLoad())
             .then(data => setAppState(data))
-            .catch(error => console.log(`Error completing task: ${error}`));
+            .catch(error => console.error(`Error completing task: ${error}`));
         });
         hideTaskModal();
     } 
@@ -112,13 +112,13 @@ function EditTaskModal({ hideTaskModal, show, task, taskBedAndIndex}) {
                     Promise.all(toDelete.map(id => authFetch(`/tasks/${id}`, { method: 'DELETE' })))
                     .then(() => fetchLoad())
                     .then(d => setAppState(d))
-                    .catch(err => console.log('Error deleting repeated tasks', err));
+                    .catch(err => console.error('Error deleting repeated tasks', err));
                 });
             } else {
                 authFetch(`/tasks/${taskPk}`, { method: 'DELETE' })
                 .then(() => fetchLoad())
                 .then(d => setAppState(d))
-                .catch(error => console.log(`An ERROR occurred while deleting Task: ${error}`));
+                .catch(error => console.error(`An ERROR occurred while deleting Task: ${error}`));
             }
         });
         hideTaskModal()

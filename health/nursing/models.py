@@ -3,6 +3,8 @@ from django.db import models
 
 # from django.utils import timezone
 from django.core.files.storage import FileSystemStorage
+from .utils.dates import dt_serialize
+from .choices import BedState, CallState, TaskState
 
 mr_fs = FileSystemStorage(location="nursing/medicalrecords")
 user_fs = FileSystemStorage(location="nursing/media")
@@ -23,16 +25,16 @@ class User(AbstractUser):
             return {
                 "id": self.id,
                 "username": self.username,
-                "leader": self.leader,
+                "leader": self.is_leader,
                 "image": self.image.url,
-                "date_joined": self.date_joined.isoformat(),
+                "date_joined": dt_serialize(self.date_joined),
                 "role": self.role,
             }
         else:
             return {
                 "id": self.id,
                 "username": self.username,
-                "date_joined": self.date_joined.isoformat(),
+                "date_joined": dt_serialize(self.date_joined),
             }
 
 
@@ -62,7 +64,7 @@ class Patient(models.Model):
                 "social_number": self.social_security_number,
                 "id_card": self.id_card_number,
                 "inpatient": self.inpatient,
-                "admission": self.admission.isoformat(),
+                "admission": dt_serialize(self.admission),
                 "diagnosis": self.diagnosis,
                 "short_diagnosis": self.short_diagnosis,
                 "treatment_roadmap": self.treatment_roadmap,
@@ -74,7 +76,7 @@ class Patient(models.Model):
                 "name": self.name,
                 "social_number": self.social_security_number,
                 "inpatient": self.inpatient,
-                "admission": self.admission.isoformat(),
+                "admission": dt_serialize(self.admission),
                 "diagnosis": self.diagnosis,
                 "short_diagnosis": self.short_diagnosis,
                 "treatment_roadmap": self.treatment_roadmap,
@@ -92,7 +94,11 @@ class Bed(models.Model):
         blank=True,
     )
     active = models.BooleanField(default=False)
-    bed_state = models.CharField(max_length=30, default="free")
+    bed_state = models.CharField(
+        max_length=30,
+        default=BedState.FREE,
+        choices=BedState.choices,
+    )
     # bed states: free, occupied, call, task, call-task
     occupied_time = models.DateTimeField(null=True, blank=True)
     planed_vacate = models.DateTimeField(null=True, blank=True)
@@ -155,7 +161,9 @@ class Task(models.Model):
     programed_time = models.DateTimeField(null=True, blank=True)
     done_time = models.DateTimeField(null=True, blank=True)
     active = models.BooleanField(default=False)
-    state = models.CharField(default="soon", max_length=15)  # later, soon, passed
+    state = models.CharField(
+        default=TaskState.SOON, max_length=15, choices=TaskState.choices
+    )  # later, soon, passed
     programed_by = models.CharField(default="Anónimo", max_length=50)
     task_done_by = models.CharField(default="Pendiente", max_length=50)
     action_done_by = models.CharField(default="Anónimo", max_length=50)
@@ -169,8 +177,8 @@ class Task(models.Model):
             "bed": self.bed.id_bed,
             "patient": self.bed.bed_patient.name,
             "task": self.task,
-            "programed_time": self.programed_time.isoformat(),
-            "done_time": self.done_time.isoformat() if self.done_time else None,
+            "programed_time": dt_serialize(self.programed_time),
+            "done_time": dt_serialize(self.done_time),
             "active": self.active,
             "state": self.state,
             "programed_by": self.programed_by,
@@ -187,7 +195,7 @@ class Call(models.Model):
         null=True, blank=True
     )  # This field is writen when call is answered
     state = models.CharField(
-        default="active", max_length=20
+        default=CallState.ACTIVE, max_length=20, choices=CallState.choices
     )  # active, answered, closed
     action_done_by = models.CharField(default="Anónimo", max_length=50)
     # call states : active, answered, closed
@@ -198,10 +206,8 @@ class Call(models.Model):
             "bed_id": self.bed.pk,
             "bed": self.bed.id_bed,
             "patient": self.bed.bed_patient.name,
-            "call_time": self.call_time.isoformat() if self.call_time else None,
-            "response_time": self.response_time.isoformat()
-            if self.response_time
-            else None,
+            "call_time": dt_serialize(self.call_time),
+            "response_time": dt_serialize(self.response_time),
             "response": self.response,
             "state": self.state,
             "action_done_by": self.action_done_by,
@@ -220,7 +226,7 @@ class Event(models.Model):
             "id": self.id,
             "loged_user": self.loged_user,
             "action": self.action,
-            "time": self.time.isoformat(),
+            "time": dt_serialize(self.time),
             "before": self.before,
             "after": self.after,
         }

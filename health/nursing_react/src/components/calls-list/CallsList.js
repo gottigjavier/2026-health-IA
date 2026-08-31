@@ -20,7 +20,8 @@ export default function CallsList(props){
 
 
     useEffect(() => {
-        callsManager({handleCall})
+        const socket = callsManager({handleCall})
+        return () => { if (socket) socket.close(); }
     }, [])
 
     useEffect(() => {
@@ -82,7 +83,7 @@ export default function CallsList(props){
             saveAnsweredCall(saveCallsList)
             }
         else {
-            console.log('No calls to answered')
+            // No calls to answered — expected state, no logging needed
         }
     }
 
@@ -101,7 +102,7 @@ export default function CallsList(props){
                 Promise.all(promises)
                 .then(() => fetchLoad())
                 .then(data => setAppState(data))
-                .catch(error => console.log(`An ERROR occurred while saving the Answered Calls: ${error}`));
+                .catch(error => console.error(`An ERROR occurred while saving the Answered Calls: ${error}`));
             })
         }
     }

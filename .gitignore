@@ -15,7 +15,8 @@
 #build
 
 # misc
-#.env
+# Variables de entorno — NUNCA se commitean (contienen secretos)
+**/.env
 /hltenv
 .DS_Store
 .env.local

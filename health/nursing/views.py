@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from .models import Bed, Patient, Call, Task
+from .choices import BedState, CallState
 from .modular_views.data_analytics import save_event
 
 import json
@@ -157,12 +158,10 @@ def occupy_bed(request):
         bed.bed_patient = patient
         bed.id_bed = bed_id
         bed.active = True
-        bed.bed_state = "occupied"
+        bed.bed_state = BedState.OCCUPIED
         bed.occupied_time = occupied_time
         bed.planed_vacate = planed_vacate
         bed.action_done_by = done_by if done_by != "" else "Anónimo"
-        print("patient name ", patient.name)
-        print("bed patien name ", bed.bed_patient.name)
         bed.save()
         before = (
             "bed.pk: "
@@ -212,15 +211,15 @@ def vacate_bed(request):
         if tasks:
             for task in tasks:
                 task.delete()
-        calls = Call.objects.filter(bed__pk=bed_pk).exclude(state="closed")
+        calls = Call.objects.filter(bed__pk=bed_pk).exclude(state=CallState.CLOSED)
         if calls:
             for call in calls:
-                call.state = "closed"
+                call.state = CallState.CLOSED
                 call.save()
         patient.inpatient = False
         patient.action_done_by = done_by if done_by != "" else "Anónimo"
         bed.active = False
-        bed.bed_state = "free"
+        bed.bed_state = BedState.FREE
         bed.vacate_time = vacate_time
         bed.action_done_by = done_by if done_by != "" else "Anónimo"
         patient.save()

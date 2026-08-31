@@ -1,6 +1,7 @@
 import logging
 from django.http import JsonResponse
 from ...models import Call, Bed
+from ...choices import BedState, CallState
 from ..data_analytics import save_event
 from ..app.app_load import load
 from ..app.app_ws_update import ws_load
@@ -30,7 +31,7 @@ def call_answered(request):
     data = json.loads(request.body)
     calls_list = data["saveCallsList"]
     for answ_call in calls_list:
-        call = Call.objects.get(bed__id_bed=answ_call["bed"], state="active")
+        call = Call.objects.get(bed__id_bed=answ_call["bed"], state=CallState.ACTIVE)
         if call:
             try:
                 bed = Bed.objects.get(id_bed=answ_call["bed"], active=True)
@@ -41,11 +42,11 @@ def call_answered(request):
                     f"bed.bed_state: {prev_bed_state}"
                 )
                 call.response_time = answ_call["response_time"].replace("T", " ")
-                call.state = "answered"
-                if bed.bed_state == "call-task":
-                    bed.bed_state = "task"
+                call.state = CallState.ANSWERED
+                if bed.bed_state == BedState.CALL_TASK:
+                    bed.bed_state = BedState.TASK
                 else:
-                    bed.bed_state = "occupied"
+                    bed.bed_state = BedState.OCCUPIED
                 bed.save()
                 call.save()
                 after = (

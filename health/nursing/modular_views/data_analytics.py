@@ -1,6 +1,9 @@
 # import pandas as pd
-from datetime import datetime
 from ..models import Event
+from ..utils.dates import dt_now
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ------------------ Event ---------------------------------
@@ -9,13 +12,13 @@ def save_event(loged_user, action, before, after):
     try:
         event.loged_user = loged_user
         event.action = action
-        event.time = datetime.now()
+        event.time = dt_now()
         event.before = before
         event.after = after
         event.save()
         return
     except Exception as e:
-        print("Error. Event no saved ", e)
+        logger.error("Error. Event no saved %s", e)
         return
 
 
@@ -23,20 +26,6 @@ def save_event(loged_user, action, before, after):
 
 
 # ---------------- Begin Data Analytics ----------------------------
-
-
-# Unused
-def data_analytics():
-    pass
-    #datas = Event.objects.all()
-    #if datas:
-    #    serialized_data = [data.serialize() for data in datas]
-    #else:
-    #    serialized_data = []
-    #df = pd.DataFrame(serialized_data)
-    #events_path = "nursing/event/events.csv"
-    #df.to_csv(events_path, sep=";")
-    #print("Data for Analysis saved in: " + events_path)
 
 
 # ---------------- end Data Analytics ----------------------------

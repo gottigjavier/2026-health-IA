@@ -48,7 +48,7 @@ function HealthApp() {
     const ws = appManager({ handleApp });
     
     return () => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
+      if (ws) {
         ws.close();
       }
     };

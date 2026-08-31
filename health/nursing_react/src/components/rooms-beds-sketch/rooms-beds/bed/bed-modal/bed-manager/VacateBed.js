@@ -63,11 +63,10 @@ export default function VacateBed({currentBed, hideBedModal}){
             return fetchLoad();
         })
         .then(data => {
-            console.log('Vacate bed Result ', data)
             setAppState(data) //updates the context with fresh data
         })
         .catch(error => {
-            console.log(`An ERROR occurred while vacate Bed, ${error}`);        
+            console.error(`An ERROR occurred while vacate Bed, ${error}`);        
         })
         hideBedModal()
     }

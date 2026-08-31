@@ -93,7 +93,7 @@ export default function NewTaskModal({currentBed, handleShowNewTask, hideBedModa
                 setAppState(data) //updates the context with fresh app state
             })
             .catch(error => {
-                console.log(`An ERROR occurred while save New Task, ${error}`);        
+                console.error(`An ERROR occurred while save New Task, ${error}`);        
             })
             setTextResponse('')
             hideBedModal()

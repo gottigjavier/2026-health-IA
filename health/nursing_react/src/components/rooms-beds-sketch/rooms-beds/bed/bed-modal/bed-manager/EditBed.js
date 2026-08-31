@@ -69,7 +69,7 @@ export default function EditBed({currentBed, handleShowInfo}){
             })
             .then(() => fetchLoad())
             .then(data => setAppState(data))
-            .catch(error => console.log(`An ERROR occurred while saving the Edited Bed: ${error}`));
+            .catch(error => console.error(`An ERROR occurred while saving the Edited Bed: ${error}`));
         });
         handleShowInfo()
         event.preventDefault()

@@ -9,6 +9,7 @@ Sistema de administración de llamadas y tareas programadas para el sector de in
 - [Tecnologías](#tecnologías)
 - [Estructura del Proyecto](#estructura-del-proyecto)
 - [Configuración con Podman](#configuración-con-podman)
+- [Secretos y Variables de Entorno Obligatorias](#secretos-y-variables-de-entorno-obligatorias)
 - [Desarrollo Local](#desarrollo-local)
 - [API REST](#api-rest)
 - [Uso de la Aplicación](#uso-de-la-aplicación)
@@ -179,6 +180,40 @@ sudo chmod -R 777 ./health/
 
 > [!CAUTION]
 > El ejemplo muestra el máximo de permisos que se pueden otorgar en un sistema Unix y en forma recursiva a las todas las subcarpetas y archivos. Esto puede resultar en un riesgo de seguridad.
+
+---
+
+## Secretos y Variables de Entorno Obligatorias
+
+> [!IMPORTANT]
+> Los archivos `.env` **nunca** se commitean. Ya están ignorados por `.gitignore`
+> (`**/.env`) y **sacados del índice de git**. Si modificás o creás un `.env`,
+> asegurate de que quede fuera del control de versiones.
+
+La aplicación exige ciertas variables de entorno para arrancar de forma segura.
+Si faltan, **el arranque falla con un mensaje claro** en lugar de usar valores
+por defecto inseguros que estarían hardcodeados en el código versionado.
+
+| Variable | Obligatoria | Descripción |
+|----------|-------------|-------------|
+| `SECRET_KEY` | Sí | Clave de firma de Django (firma sesiones, JWTs, tokens CSRF). Debe ser única y secreta por entorno. |
+| `CALL_SECRET_KEY` | No (default inseguro) | Secreto compartido que autentica los mensajes de los pulsadores (WebSocket `callData` y MQTT `mqtt/call/`). Debe coincidir con el valor configurado en el firmware de los pulsadores. **En producción es OBLIGATORIO definirlo** con un valor sólido y único. |
+| `DJANGO_SUPERUSER_USERNAME` | Solo primer arranque | Username del superusuario inicial. |
+| `DJANGO_SUPERUSER_PASSWORD` | Solo primer arranque | Contraseña del superusuario inicial. |
+| `DJANGO_SUPERUSER_EMAIL` | Solo primer arranque | Email del superusuario inicial. |
+
+Estas credenciales **solo** se necesitan la primera vez que se levanta la app
+(para crear el superusuario inicial). Si ya existe un superusuario, el arranque
+no las exige.
+
+> [!WARNING]
+> `SECRET_KEY` y las contraseñas expuestas alguna vez en git (o en un README,
+> PR, o chat) deben considerarse **comprometidas** y **rotarse** inmediatamente.
+> Nunca las compartas fuera del entorno seguro donde corre la aplicación.
+> `CALL_SECRET_KEY` usa un default inseguro (`CHANGE-ME-IN-PRODUCTION`) — en
+> producción DEBE definirse por entorno. Si la clave vieja hardcodeada
+> (`this&is$a$key&to?prevent?hacking`) llegó a estar en git o en el firmware,
+> rótala y actualizá pulsador + backend al mismo valor nuevo.
 
 ---
 
@@ -362,14 +397,19 @@ El archivo CSV exportado contiene las columnas:
 La aplicación espera mensajes en formato JSON:
 
 ```json
-{"state": true, "id": "12,3", "key": "clave-anti-hacking"}
+{"state": true, "id": "12,3", "key": "<CALL_SECRET_KEY>"}
 ```
 
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | `state` | Boolean | true = llamada, false = cancelación |
 | `id` | String | "habitación,cama" (ej: "12,3"). Para cancelación: "12,0" |
-| `key` | String | Clave de seguridad |
+| `key` | String | Secreto compartido. **Debe ser idéntico** a `CALL_SECRET_KEY` configurado en el backend. No es un campo de contenido: el backend lo valida contra `settings.CALL_SECRET_KEY` y **rechaza (aborta) cualquier mensaje que no lo tenga**. |
+
+> [!IMPORTANT]
+> El valor de `key` es el **mismo** que `CALL_SECRET_KEY` definido en el entorno
+> del backend. Configuralo en el firmware del pulsador (p. ej. en `defines.h`)
+> con el **mismo valor** y, si se rota, actualizá ambos lados en simultáneo.
 
 ### Configuración ESP8266 (NodeMCU)
 

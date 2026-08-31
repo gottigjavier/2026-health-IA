@@ -72,7 +72,7 @@ export default function OccupyBed({currentBed, handleShowInfo}){
             setAppState(data) //updates the context with fresh data
         })
         .catch(error => {
-            console.log(`An ERROR occurred while save Occupy Bed, ${error}`);        
+            console.error(`An ERROR occurred while save Occupy Bed, ${error}`);        
         })
         handleShowInfo()
     }

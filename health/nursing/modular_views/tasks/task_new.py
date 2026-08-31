@@ -1,7 +1,8 @@
 from ...models import Task, Bed
+from ...choices import BedState, TaskState
 from ..data_analytics import save_event
-from datetime import datetime
-from dateutil import parser
+from django.utils import timezone
+from ...utils.dates import dt_parse, dt_now, dt_from_timestamp
 import json
 import random
 
@@ -15,27 +16,29 @@ def modular_new_task(request):
     task_done_by = "Pendiente"
     task_text = data["textAction"]
     task_state = data["state"]
+    if task_state not in TaskState.values:
+        raise ValueError(f"Invalid task state: {task_state!r}")
     task_repeat_checked = data["repeatIsChecked"]
     task_repeat_lapse = data["repeatLapse"]
     task_repeat_lapse_unit = data["repeatLapseUnit"]
     task_repeat_until = data["repeatUntil"]
     # Detecta automáticamente si trae segundos o no
-    programed_date_time = parser.parse(programed_time)
+    programed_date_time = dt_parse(programed_time)
     programed_time_float = programed_date_time.timestamp()
     task_repeat_id = str(programed_time_float * random.random())
     bed = Bed.objects.get(id=bed_id)
-    if task_state == "passed":
-        if bed.bed_state == "call" or bed.bed_state == "call-task":
-            bed.bed_state = "call-task"
+    if task_state == TaskState.PASSED:
+        if bed.bed_state == BedState.CALL or bed.bed_state == BedState.CALL_TASK:
+            bed.bed_state = BedState.CALL_TASK
         else:
-            bed.bed_state = "task"
+            bed.bed_state = BedState.TASK
     task = Task()
     task.bed = bed
     task.repeat = task_repeat_checked
     task.repeat_id = task_repeat_id
     task.task = task_text if task_text != "" else "Tarea de Rutina"
-    task.programed_time = programed_time
-    task.done_time = done_time
+    task.programed_time = dt_parse(programed_time)
+    task.done_time = dt_parse(done_time)
     task.programed_by = programed_by if programed_by != "" else "Anónimo"
     task.action_done_by = task.programed_by
     task.task_done_by = task_done_by
@@ -130,7 +133,7 @@ def save_repeated_tasks(
     task_state,
     username,
 ):
-    time_now = datetime.now()
+    time_now = dt_now()
     time_now_float = time_now.timestamp()
     time_factor = int(task_repeat_lapse) * 60  # seconds
     if task_repeat_lapse_unit == "hours":
@@ -138,22 +141,22 @@ def save_repeated_tasks(
     if task_repeat_lapse_unit == "days":
         time_factor = int(task_repeat_lapse) * 86400  # seconds
     # Detecta automáticamente si trae segundos o no
-    task_repeat_until_date_time = parser.parse(programed_time)
+    task_repeat_until_date_time = dt_parse(programed_time)
     task_repeat_until_float = task_repeat_until_date_time.timestamp()
-    programed_date_time = parser.parse(programed_time)
+    programed_date_time = dt_parse(programed_time)
     programed_time_float = programed_date_time.timestamp()
-    done_date_time = parser.parse(programed_time)
+    done_date_time = dt_parse(programed_time)
     done_time_float = done_date_time.timestamp()
     task_count = int((task_repeat_until_float - programed_time_float) / time_factor)
     for i in range(1, task_count + 1):
         programed_time_float = programed_time_float + time_factor
         if programed_time_float - time_now_float < 600:
-            task_state = "soon"
+            task_state = TaskState.SOON
         else:
-            task_state = "later"
-        programed_time = datetime.fromtimestamp(programed_time_float)
+            task_state = TaskState.LATER
+        programed_time = dt_from_timestamp(programed_time_float)
         done_time_float = done_time_float + time_factor
-        done_time = datetime.fromtimestamp(done_time_float)
+        done_time = dt_from_timestamp(done_time_float)
         bed = Bed.objects.get(id=bed_id)
         task = Task()
         task.bed = bed

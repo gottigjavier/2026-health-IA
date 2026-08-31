@@ -1,4 +1,5 @@
 from ...models import Bed, Task
+from ...choices import BedState, TaskState
 from ..data_analytics import save_event
 import json
 
@@ -37,6 +38,8 @@ def modular_edit_task(request):
     )
     current_bed = data["currentBed"]
     task_state = data["state"]
+    if task_state not in TaskState.values:
+        raise ValueError(f"Invalid task state: {task_state!r}")
     task_active = data["active"]
     task.programed_time = data["programedDT"]
     task.done_time = data["doneDT"]
@@ -47,7 +50,7 @@ def modular_edit_task(request):
     task.state = task_state
     task.active = task_active
     bed_task_list = Task.objects.filter(
-        bed__id_bed=current_bed, active=True, state="passed"
+        bed__id_bed=current_bed, active=True, state=TaskState.PASSED
     )
     edit_task_bed_color(task, bed_task_list, task_state, task_active)
     task.save()
@@ -88,24 +91,24 @@ def edit_task_bed_color(task, bed_task_list, task_state, task_active):
         bed = Bed.objects.get(id=task.bed.pk)
         if bed_task_list[0].id == task.pk:
             if not task_active:
-                if bed.bed_state == "call-task":
-                    bed.bed_state = "call"
+                if bed.bed_state == BedState.CALL_TASK:
+                    bed.bed_state = BedState.CALL
                 else:
-                    bed.bed_state = "occupied"
+                    bed.bed_state = BedState.OCCUPIED
             else:
-                if task_state != "passed":
-                    if bed.bed_state == "call-task" or bed.bed_state == "call":
-                        bed.bed_state = "call"
+                if task_state != TaskState.PASSED:
+                    if bed.bed_state == BedState.CALL_TASK or bed.bed_state == BedState.CALL:
+                        bed.bed_state = BedState.CALL
                     else:
-                        bed.bed_state = "occupied"
+                        bed.bed_state = BedState.OCCUPIED
         bed.save()
     if len(bed_task_list) == 0:
         bed = Bed.objects.get(id=task.bed.pk)
-        if task_active and task_state == "passed":
-            if bed.bed_state == "call":
-                bed.bed_state = "call-task"
+        if task_active and task_state == TaskState.PASSED:
+            if bed.bed_state == BedState.CALL:
+                bed.bed_state = BedState.CALL_TASK
             else:
-                bed.bed_state = "task"
+                bed.bed_state = BedState.TASK
         bed.save()
 
 
