@@ -12,6 +12,7 @@ import logging
 from urllib.parse import parse_qs
 
 import jwt
+from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
@@ -40,7 +41,7 @@ def extract_token_from_scope(scope):
     return tokens[0] if tokens else None
 
 
-def authenticate_ws_token(token_str):
+async def authenticate_ws_token(token_str):
     """
     Validate a JWT access token and return the authenticated User.
 
@@ -67,7 +68,7 @@ def authenticate_ws_token(token_str):
             logger.warning("WS JWT missing '%s' claim", user_id_claim)
             return None
 
-        return User.objects.get(id=user_id)
+        return await sync_to_async(User.objects.get)(id=user_id)
 
     except jwt.ExpiredSignatureError:
         logger.warning("WS JWT token expired")

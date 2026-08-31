@@ -132,7 +132,7 @@ class HealthAppTester:
                 print(f"       {Colors.YELLOW}Total beds: {len(beds)}{Colors.RESET}")
                 if beds:
                     print(
-                        f"       {Colors.YELLOW}Sample bed: {beds[0]['id_bed']}{Colors.RESET}"
+                        f"       {Colors.YELLOW}Sample bed: {beds[0]['bed_id']}{Colors.RESET}"
                     )
         except Exception as e:
             self.print_test("Fetch beds list", False, str(e))
@@ -163,7 +163,7 @@ class HealthAppTester:
                     vacate_time = now + timedelta(days=7)
 
                     payload = {
-                        "roomBedId": free_bed["id_bed"],
+                        "roomBedId": free_bed["bed_id"],
                         "patientName": f"Patient_{int(time.time())}",
                         "patientSocial": f"SSN{int(time.time())}",
                         "occupiedDateTime": now.strftime("%Y-%m-%dT%H:%M"),
@@ -214,25 +214,25 @@ class HealthAppTester:
             # Test call from occupied bed
             if occupied_bed:
                 print(
-                    f"\n{Colors.BLUE}Testing call from OCCUPIED bed: {occupied_bed['id_bed']}{Colors.RESET}"
+                    f"\n{Colors.BLUE}Testing call from OCCUPIED bed: {occupied_bed['bed_id']}{Colors.RESET}"
                 )
                 # The app receives calls via MQTT, but we can test by reading /nursing/rooms
                 # For now, we just verify the bed state
                 self.print_test(
                     "Occupied bed exists",
                     True,
-                    f"Bed {occupied_bed['id_bed']} is {occupied_bed['bed_state']}",
+                    f"Bed {occupied_bed['bed_id']} is {occupied_bed['bed_state']}",
                 )
 
             # Test call from unoccupied bed
             if unoccupied_bed:
                 print(
-                    f"\n{Colors.BLUE}Testing call from UNOCCUPIED bed: {unoccupied_bed['id_bed']}{Colors.RESET}"
+                    f"\n{Colors.BLUE}Testing call from UNOCCUPIED bed: {unoccupied_bed['bed_id']}{Colors.RESET}"
                 )
                 self.print_test(
                     "Unoccupied bed exists",
                     True,
-                    f"Bed {unoccupied_bed['id_bed']} is free",
+                    f"Bed {unoccupied_bed['bed_id']} is free",
                 )
         except Exception as e:
             self.print_test("Call testing", False, str(e))

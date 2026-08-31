@@ -28,7 +28,7 @@ export function formattingDateTime(format='d-m-y', propDateTime){
             dateTime = year + '/' + month + '/' + date + ' ' + hours + ':' + minutes + ':' + seconds;
         }
         else {
-            dateTime = dateTimeData.toLocaleString()
+            dateTime = dateTimeData.toLocaleString('es-AR')
         }
     }
     else if (typeof(dateTimeData) === 'string'){
@@ -84,7 +84,7 @@ export function formattingDate(format='d-m-y', propDate){
             exitDate = shortYear + '/' + month + '/' + date;
         }
         else {
-            exitDate = dateData.toLocaleString().split[0]
+            exitDate = dateData.toLocaleString('es-AR').split(' ')[0]
         }
     }
     if (typeof(dateData) === 'string'){
@@ -155,7 +155,7 @@ function dateTimeReverseHyphen(dateTimeData){
     // datetime.toLocaleString() format from backend: yyyy-mm-ddTHH:MM:SS.fff
     // return dd-mm-yyyy HH:MM:SS 
 
-    const localeDateTimeData = dateTimeData.toLocaleString();
+    const localeDateTimeData = dateTimeData.toLocaleString('es-AR');
     const dateTimeFormat = () => {
         try {
             return {'date': localeDateTimeData.split('T')[0].split('-').reverse().join('-'), 'time': localeDateTimeData.split('T')[1].split('.')[0]};
@@ -173,7 +173,7 @@ function dateTimeNoReverseHyphen(dateTimeData){
     // datetime.toLocaleString() format from backend: yyyy-mm-ddTHH:MM:SS.fff
     // return dd-mm-yyyy HH:MM:SS 
     
-    const localeDateTimeData = dateTimeData.toLocaleString();
+    const localeDateTimeData = dateTimeData.toLocaleString('es-AR');
     const dateTimeFormat = () => {
         try {
             return {'date': localeDateTimeData.split('T')[0].split('-').join('-'), 'time': localeDateTimeData.split('T')[1].split('.')[0]};

@@ -108,15 +108,6 @@ class Bed(models.Model):
     # def __str__(self):
     #    return self.id_bed
 
-    def serialize(self):
-        return {
-            "id": self.id,
-            "id_bed": self.id_bed,
-            "bed_patient": self.bed_patient.name,
-            "bed_state": self.bed_state,
-            "action_done_by": self.action_done_by,
-        }
-
 
 class MedicalRecord(models.Model):
     patient = models.OneToOneField(

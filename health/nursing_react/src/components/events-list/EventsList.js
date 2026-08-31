@@ -110,7 +110,7 @@ function EventsList() {
   const formatDateTime = (isoString) => {
     if (!isoString) return "";
     const date = new Date(isoString);
-    return date.toLocaleString();
+    return date.toLocaleString('es-AR');
   };
 
   const getSortIndicator = (field) => {

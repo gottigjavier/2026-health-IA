@@ -14,6 +14,12 @@ try:
 except Exception:
 
     class RefreshToken:
+        def __init__(self, token=None):
+            if token is None:
+                self._token = "refresh-token-mock"
+            else:
+                self._token = token
+
         @staticmethod
         def for_user(u):
             class RT:
@@ -26,16 +32,25 @@ except Exception:
 
             return RT()
 
+        def __str__(self):
+            return "refresh-token-mock"
+
+        @property
+        def access_token(self):
+            return "access-token-mock"
+
     class JWTAuth:
         pass
 
 
 from .models import User, Patient, Bed, Task, Call, Event
-from .choices import BedState, CallState, TaskState
+from .choices import BedState, CallState, TaskState, RoleChoices
 from .modular_views.data_analytics import save_event
+from .modular_views.beds.beds_serialized import serial_beds
 from .utils.dates import dt_parse, dt_now, dt_serialize
 import paho.mqtt.client as mqtt
 import json
+import jwt as pyjwt
 from urllib.parse import parse_qs
 from django.views.decorators.csrf import csrf_exempt
 
@@ -88,6 +103,14 @@ class UserCreateSchema(Schema):
     email: str
     password: str
     is_leader: bool = False
+    role: str = "nurse"
+
+
+def can_register_users(user):
+    """True si el usuario puede registrar nuevos usuarios."""
+    return user.is_superuser or (
+        getattr(user, "is_leader", False) and getattr(user, "role", "") == "doctor"
+    )
 
 
 class LoginSchema(Schema):
@@ -99,6 +122,11 @@ class TokenSchema(Schema):
     access: str
     refresh: str
     user: UserSchema
+
+
+class RefreshSchema(Schema):
+    access: str
+    refresh: str
 
 
 class PatientSchema(ModelSchema):
@@ -114,54 +142,6 @@ class PatientSchema(ModelSchema):
             "diagnosis",
             "short_diagnosis",
             "treatment_roadmap",
-            "action_done_by",
-        ]
-
-
-class BedSchema(ModelSchema):
-    class Meta:
-        model = Bed
-        fields = [
-            "id",
-            "id_bed",
-            "active",
-            "bed_state",
-            "occupied_time",
-            "planed_vacate",
-            "vacate_time",
-            "action_done_by",
-        ]
-
-
-class TaskSchema(ModelSchema):
-    class Meta:
-        model = Task
-        fields = [
-            "id",
-            "bed",
-            "repeat",
-            "repeat_id",
-            "task",
-            "programed_time",
-            "done_time",
-            "active",
-            "state",
-            "programed_by",
-            "task_done_by",
-            "action_done_by",
-        ]
-
-
-class CallSchema(ModelSchema):
-    class Meta:
-        model = Call
-        fields = [
-            "id",
-            "bed",
-            "response",
-            "call_time",
-            "response_time",
-            "state",
             "action_done_by",
         ]
 
@@ -229,7 +209,22 @@ def login(request, data: LoginSchema):
     return JsonResponse({"error": "Invalid credentials"}, status=401)
 
 
-@api.post("/auth/register", response=UserSchema, auth=None)
+@api.post("/auth/refresh", response=RefreshSchema, auth=None)
+def refresh_token(request, data: dict):
+    refresh_str = data.get("refresh") if isinstance(data, dict) else None
+    if not refresh_str:
+        return 401, {"error": "Token inválido"}
+    try:
+        token = RefreshToken(refresh_str)
+        return {
+            "access": str(token.access_token),
+            "refresh": str(token),
+        }
+    except Exception:
+        return 401, {"error": "Token inválido"}
+
+
+@api.post("/auth/register", response=UserSchema, auth=jwtauth)
 def register(request, body: dict = None):
     """
     Robust registration handler that reads the underlying Django request
@@ -238,6 +233,11 @@ def register(request, body: dict = None):
     This function attempts several fallbacks (JSON, form-encoded body,
     request.POST) to recover the payload.
     """
+    if not can_register_users(request.user):
+        return JsonResponse(
+            {"error": "No tiene permisos para registrar usuarios"}, status=403
+        )
+
     django_req = getattr(request, "_request", request)
 
     # Debug snapshot removed - was used during development
@@ -378,6 +378,7 @@ def register(request, body: dict = None):
     email = parsed.get("email")
     password = parsed.get("password")
     is_leader = parsed.get("is_leader", False)
+    role = parsed.get("role", "nurse")
 
     if not username or not email or not password:
         return JsonResponse(
@@ -390,6 +391,7 @@ def register(request, body: dict = None):
             email=email,
             password=password,
             is_leader=is_leader,
+            role=role,
         )
     except IntegrityError:
         return JsonResponse(
@@ -415,6 +417,30 @@ def register(request, body: dict = None):
 def django_register(request):
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    # Authenticate caller via JWT
+    auth_header = request.META.get("HTTP_AUTHORIZATION", "")
+    if not auth_header.startswith("Bearer "):
+        return JsonResponse({"error": "Autenticación requerida"}, status=401)
+    token_str = auth_header.split(" ", 1)[1]
+    try:
+        signing_key = settings.NINJA_JWT.get("SIGNING_KEY", settings.SECRET_KEY)
+        algorithm = settings.NINJA_JWT.get("ALGORITHM", "HS256")
+        user_id_claim = settings.NINJA_JWT.get("USER_ID_CLAIM", "user_id")
+        payload = pyjwt.decode(token_str, signing_key, algorithms=[algorithm])
+        user_id = payload.get(user_id_claim)
+        if user_id is None:
+            return JsonResponse({"error": "Token inválido"}, status=401)
+        caller = User.objects.get(id=user_id)
+    except pyjwt.ExpiredSignatureError:
+        return JsonResponse({"error": "Token expirado"}, status=401)
+    except (pyjwt.InvalidTokenError, User.DoesNotExist):
+        return JsonResponse({"error": "Token inválido"}, status=401)
+
+    if not can_register_users(caller):
+        return JsonResponse(
+            {"error": "No tiene permisos para registrar usuarios"}, status=403
+        )
 
     django_req = request
     parsed = {}
@@ -448,6 +474,7 @@ def django_register(request):
     is_leader = (
         str(is_leader_raw).lower() in ("true", "1", "yes") if is_leader_raw else False
     )
+    role = parsed.get("role", "nurse")
 
     if not username or not email or not password:
         return JsonResponse(
@@ -460,6 +487,7 @@ def django_register(request):
             email=email,
             password=password,
             is_leader=is_leader,
+            role=role,
         )
     except IntegrityError:
         return JsonResponse(
@@ -472,6 +500,7 @@ def django_register(request):
             "username": user.username,
             "email": user.email,
             "is_leader": user.is_leader,
+            "is_superuser": user.is_superuser,
             "role": getattr(user, "role", "nurse"),
             "image": getattr(user, "image", None) and str(user.image.url),
             "date_joined": dt_serialize(user.date_joined)
@@ -491,19 +520,19 @@ def get_current_user(request):
     return request.user
 
 
-@api.get("/beds", response=List[BedSchema], auth=jwtauth)
+@api.get("/beds", auth=jwtauth)
 def list_beds(request):
     beds = Bed.objects.all().select_related("bed_patient")
-    return beds
+    return serial_beds(beds)
 
 
-@api.get("/beds/{int:bed_id}", response=BedSchema, auth=jwtauth)
+@api.get("/beds/{int:bed_id}", auth=jwtauth)
 def get_bed(request, bed_id: int):
     bed = Bed.objects.get(id=bed_id)
-    return bed
+    return serial_beds([bed])[0]
 
 
-@api.post("/beds", response=BedSchema, auth=jwtauth)
+@api.post("/beds", auth=jwtauth)
 def create_bed(request, data: Optional[BedInputSchema] = None, payload: dict = None):
     # Accept either a Ninja-parsed schema or raw JSON/form payloads. This
     # avoids errors when the request body was consumed or when the client
@@ -597,10 +626,10 @@ def create_bed(request, data: Optional[BedInputSchema] = None, payload: dict = N
         app_ws_update()
     except Exception:
         pass
-    return bed
+    return serial_beds([bed])[0]
 
 
-@api.put("/beds/{int:bed_id}", response=BedSchema, auth=jwtauth)
+@api.put("/beds/{int:bed_id}", auth=jwtauth)
 def update_bed(request, bed_id: int, data: BedEditSchema):
     bed = Bed.objects.get(id=bed_id)
     patient = bed.bed_patient
@@ -645,7 +674,7 @@ def update_bed(request, bed_id: int, data: BedEditSchema):
         app_ws_update()
     except Exception:
         pass
-    return bed
+    return serial_beds([bed])[0]
 
 
 @api.post("/beds/vacate", auth=jwtauth)
@@ -709,13 +738,13 @@ def list_patients(request):
     return Patient.objects.filter(inpatient=True)
 
 
-@api.get("/tasks", response=List[TaskSchema], auth=jwtauth)
+@api.get("/tasks", auth=jwtauth)
 def list_tasks(request):
     tasks = Task.objects.all().select_related("bed__bed_patient")
-    return tasks
+    return [t.serialize() for t in tasks]
 
 
-@api.post("/tasks", response=TaskSchema, auth=jwtauth)
+@api.post("/tasks", auth=jwtauth)
 def create_task(request, data: TaskInputSchema):
     bed = Bed.objects.get(id=data.bed_id)
     # Create primary task
@@ -809,10 +838,10 @@ def create_task(request, data: TaskInputSchema):
     )
     save_event(request.user.username, "new task", before, after)
 
-    return task
+    return task.serialize()
 
 
-@api.put("/tasks/{int:task_id}", response=TaskSchema, auth=jwtauth)
+@api.put("/tasks/{int:task_id}", auth=jwtauth)
 def update_task(request, task_id: int, data: TaskEditSchema):
     try:
         task = Task.objects.get(id=task_id)
@@ -884,10 +913,10 @@ def update_task(request, task_id: int, data: TaskEditSchema):
     )
     save_event(request.user.username, "edit task", before, after)
 
-    return task
+    return task.serialize()
 
 
-@api.post("/tasks/{int:task_id}/complete", response=TaskSchema, auth=jwtauth)
+@api.post("/tasks/{int:task_id}/complete", auth=jwtauth)
 def complete_task(request, task_id: int):
     task = Task.objects.get(id=task_id)
     before = (
@@ -924,7 +953,7 @@ def complete_task(request, task_id: int):
     )
     save_event(request.user.username, "complete task", before, after)
 
-    return task
+    return task.serialize()
 
 
 @api.delete("/tasks/{int:task_id}", auth=jwtauth)
@@ -962,13 +991,13 @@ def delete_task(request, task_id: int):
     return {"message": "Task deleted"}
 
 
-@api.get("/calls", response=List[CallSchema], auth=jwtauth)
+@api.get("/calls", auth=jwtauth)
 def list_calls(request):
     calls = Call.objects.all().select_related("bed__bed_patient")
-    return calls
+    return [c.serialize() for c in calls]
 
 
-@api.post("/calls/{int:call_id}/answer", response=CallSchema, auth=jwtauth)
+@api.post("/calls/{int:call_id}/answer", auth=jwtauth)
 def answer_call(request, call_id: int):
     call = Call.objects.get(id=call_id)
     bed = call.bed
@@ -1005,10 +1034,10 @@ def answer_call(request, call_id: int):
     )
     save_event(request.user.username, "answer call", before, after)
 
-    return call
+    return call.serialize()
 
 
-@api.post("/calls/{int:call_id}/close", response=CallSchema, auth=jwtauth)
+@api.post("/calls/{int:call_id}/close", auth=jwtauth)
 def close_call(request, call_id: int, data: CallResponseSchema):
     call = Call.objects.get(id=call_id)
     bed = call.bed
@@ -1045,7 +1074,7 @@ def close_call(request, call_id: int, data: CallResponseSchema):
     )
     save_event(request.user.username, "close call", before, after)
 
-    return call
+    return call.serialize()
 
 
 @api.get("/rooms", auth=jwtauth)
@@ -1059,24 +1088,8 @@ def get_rooms(request):
                 "beds": [],
                 "status": "gray",  # Por defecto gris (vacío)
             }
-        bed_data = {
-            "id": bed.id,
-            "id_bed": bed.id_bed,
-            "active": bed.active,
-            "bed_state": bed.bed_state,
-            "occupied_time": dt_serialize(bed.occupied_time),
-            "planed_vacate": dt_serialize(bed.planed_vacate),
-            "action_done_by": bed.action_done_by,
-        }
-        if bed.bed_patient:
-            bed_data["patient"] = {
-                "id": bed.bed_patient.id,
-                "name": bed.bed_patient.name,
-                "social_security_number": bed.bed_patient.social_security_number,
-                "short_diagnosis": bed.bed_patient.short_diagnosis,
-                "diagnosis": bed.bed_patient.diagnosis,
-            }
-        rooms_data[room_num]["beds"].append(bed_data)
+        # Serializar bed con Contract B (serial_beds)
+        rooms_data[room_num]["beds"].extend(serial_beds([bed]))
 
         # Si la cama está activa, la habitación es verde
         if bed.active:

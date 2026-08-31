@@ -39,3 +39,4 @@ staticfiles/
 .fuff_cache/
 .gga
 AGENTS.md
+sessions/

@@ -13,6 +13,7 @@ function Register() {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [isLeader, setIsLeader] = useState(false);
+  const [role, setRole] = useState("nurse");
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [error, setError] = useState("");
@@ -70,7 +71,7 @@ function Register() {
 
     setLoading(true);
     try {
-      await apiRegister(username, email, password, isLeader, image);
+      await apiRegister(username, email, password, isLeader, role, image);
       setMessage("¡Registro exitoso! Redirigiendo a inicio de sesión...");
       setTimeout(() => {
         navigate("/login");
@@ -147,6 +148,20 @@ function Register() {
               onChange={(e) => setConfirmation(e.target.value)}
               disabled={loading}
             />
+          </div>
+
+          <div className="form-group">
+            <select
+              className="form-control"
+              name="role"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              disabled={loading}
+            >
+              <option value="nurse">Enfermero</option>
+              <option value="doctor">Médico</option>
+              <option value="office">Oficina</option>
+            </select>
           </div>
 
           <div className="form-check mb-3">

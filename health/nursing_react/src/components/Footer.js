@@ -11,7 +11,7 @@ function Footer() {
   
   const user = getUser();
   const bedsOccupied = appState?.beds ? appState.beds.filter(bed => bed.bed_active).length : 0;
-  const isLeader = user?.is_leader === true;
+  const canRegister = user?.is_superuser === true || (user?.is_leader === true && user?.role === 'doctor');
 
   const handleLogout = async () => {
     if (window.confirm("¿Está seguro de que desea cerrar sesión?")) {
@@ -34,7 +34,7 @@ function Footer() {
           <span className="footer-value">{bedsOccupied}</span>
         </div>
 
-        {isLeader && (
+        {canRegister && (
           <div className="footer-section">
             <Link to="/register" className="btn btn-sm btn-primary" title="Registrar nuevo usuario">
               Nuevo Usuario

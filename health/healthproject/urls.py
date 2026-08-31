@@ -16,10 +16,12 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import include, path, re_path
-from . import settings
 from django.views.static import serve
 from nursing.api import api as nursing_api
 from nursing.api import django_register
+from nursing.modular_views.rooms import rooms as nursing_rooms
+
+from . import settings
 
 static_urlpatterns = [
     re_path(r"^media/(?P<path>.*)$", serve, {"document_root": settings.MEDIA_ROOT}),
@@ -55,6 +57,8 @@ urlpatterns = [
     # intentionally placed before the `api/` include so it takes precedence.
     path("api/auth/register", django_register),
     path("api/", nursing_api.urls),
-    path("nursing/", include("nursing.urls")),
+    # Ruta directa legacy del simulador de habitaciones (modular_views.rooms).
+    # Se mantiene fuera del API para preservar /nursing/rooms tras deprecar views.py.
+    path("nursing/rooms", nursing_rooms),
     path("", include(static_urlpatterns)),
 ]

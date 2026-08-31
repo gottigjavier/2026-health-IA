@@ -21,3 +21,9 @@ class TaskState(models.TextChoices):
     LATER = "later"
     SOON = "soon"
     PASSED = "passed"
+
+
+class RoleChoices(models.TextChoices):
+    OFFICE = "office"
+    DOCTOR = "doctor"
+    NURSE = "nurse"

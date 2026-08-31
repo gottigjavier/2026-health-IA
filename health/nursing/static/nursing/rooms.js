@@ -1,3 +1,12 @@
+function getAccessToken() {
+    const meta = document.querySelector('meta[name="access-token"]');
+    if (meta && meta.content) {
+        return meta.content;
+    }
+    // Fallback: SPA stores the JWT here after /api/auth/login (same origin).
+    return localStorage.getItem('access_token') || '';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     room_calls();
     document.addEventListener('click', event => {
@@ -7,13 +16,27 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-const callSocket = new WebSocket(
-    'ws://'
-    + window.location.host
-    + '/ws/callData/'
-);
+function connectSocket() {
+    const token = getAccessToken();
+    const url = token
+        ? 'ws://' + window.location.host + '/ws/callData/?token=' + encodeURIComponent(token)
+        : 'ws://' + window.location.host + '/ws/callData/';
+    return new WebSocket(url);
+}
+
+let callSocket = connectSocket();
+
+// Reconnect the call socket if it is not open yet (the JWT-based consumer
+// rejects connections without a token, and sockets may close/retry).
+function ensureSocket() {
+    if (!callSocket || callSocket.readyState !== WebSocket.OPEN) {
+        callSocket = connectSocket();
+    }
+    return callSocket;
+}
 
 function call(call_id){
+    ensureSocket();
     let state;
     if(!call_id.includes(',0')){
         state = true;

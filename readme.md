@@ -146,7 +146,7 @@ podman build -t health-app:latest .
 podman kube play pod.yaml
 
 # 1 y 2 En un sólo paso
-podmanbuildall.sh && podman kube play pod.yaml
+bash podmanbuildall.sh && podman kube play pod.yaml
 
 # 3. Verificar estado
 podman pod ps

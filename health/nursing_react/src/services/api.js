@@ -41,25 +41,54 @@ export const login = async (username, password) => {
   return data;
 };
 
-export const register = async (username, email, password, isLeader = false, imageFile = null) => {
+export const register = async (username, email, password, isLeader = false, role = "nurse", imageFile = null) => {
   const formData = new FormData();
   formData.append('username', username);
   formData.append('email', email);
   formData.append('password', password);
   formData.append('is_leader', isLeader);
+  formData.append('role', role);
   
   if (imageFile) {
     formData.append('image', imageFile);
   }
 
-  const response = await fetch(`${API_URL}/auth/register`, {
-    method: 'POST',
-    body: formData,
-  });
+  const doRegister = async (token) => {
+    const headers = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return fetch(`${API_URL}/auth/register`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+  };
+
+  let token = getToken();
+  let response = await doRegister(token);
+
+  if (response.status === 401 && token) {
+    try {
+      const newToken = await refreshAccessToken();
+      token = newToken;
+      response = await doRegister(token);
+    } catch (e) {
+      clearTokens();
+      window.location.href = '/login';
+      throw new Error('Session expired. Please log in again.');
+    }
+  }
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || error[0] || 'Registration failed');
+    let errMsg = 'Registration failed';
+    try {
+      const error = await response.json();
+      errMsg = error.detail || error[0] || error.error || JSON.stringify(error);
+    } catch (e) {
+      errMsg = `HTTP ${response.status}`;
+    }
+    throw new Error(errMsg);
   }
 
   return await response.json();

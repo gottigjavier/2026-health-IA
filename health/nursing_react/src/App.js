@@ -31,7 +31,7 @@ function App() {
           <Route 
             path="/register" 
             element={
-              isAuthenticated() && getUser()?.is_leader === true 
+              isAuthenticated() && (getUser()?.is_superuser === true || (getUser()?.is_leader === true && getUser()?.role === 'doctor'))
                 ? <Register /> 
                 : <Navigate to="/" />
             } 

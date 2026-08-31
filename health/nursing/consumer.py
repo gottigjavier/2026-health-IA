@@ -21,7 +21,7 @@ class appConsumer(AsyncWebsocketConsumer):
             await self.close(code=WS_CLOSE_CODE_MISSING_TOKEN)
             return
 
-        user = authenticate_ws_token(token)
+        user = await authenticate_ws_token(token)
         if user is None:
             await self.close(code=WS_CLOSE_CODE_INVALID_TOKEN)
             return
@@ -76,7 +76,7 @@ class callConsumer(AsyncWebsocketConsumer):
             await self.close(code=WS_CLOSE_CODE_MISSING_TOKEN)
             return
 
-        user = authenticate_ws_token(token)
+        user = await authenticate_ws_token(token)
         if user is None:
             await self.close(code=WS_CLOSE_CODE_INVALID_TOKEN)
             return
@@ -168,7 +168,7 @@ class taskConsumer(AsyncWebsocketConsumer):
             await self.close(code=WS_CLOSE_CODE_MISSING_TOKEN)
             return
 
-        user = authenticate_ws_token(token)
+        user = await authenticate_ws_token(token)
         if user is None:
             await self.close(code=WS_CLOSE_CODE_INVALID_TOKEN)
             return

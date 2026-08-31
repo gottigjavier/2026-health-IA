@@ -120,7 +120,11 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [(env.str("REDIS", default="localhost"), 6379)],
+            "hosts": [f"redis://{env.str('REDIS', default='localhost')}:6379/0?protocol=2"],
+            "capacity": 1500,
+            "expiry": 60,
+            "group_expiry": 86400,
+            "symmetric_encryption_keys": [env.str("SECRET_KEY")],
         },
     },
 }
