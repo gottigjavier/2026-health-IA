@@ -44,8 +44,8 @@ class appConsumer(AsyncWebsocketConsumer):
         pass
         # await self.disconnect()
 
-    async def receive(self, app_data):
-        data = json.loads(app_data)
+    async def receive(self, text_data):
+        data = json.loads(text_data)
         all_data = data["all_data"]
         await self.channel_layer.group_send(
             self.groupname,
@@ -191,8 +191,8 @@ class taskConsumer(AsyncWebsocketConsumer):
         pass
         # await self.disconnect()
 
-    async def receive(self, task_data):
-        data = json.loads(task_data)
+    async def receive(self, text_data):
+        data = json.loads(text_data)
         tasks_and_beds = data["tasks_and_beds"]
         await self.channel_layer.group_send(
             self.groupname,
