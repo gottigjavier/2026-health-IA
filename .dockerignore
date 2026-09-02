@@ -5,6 +5,8 @@
 **/.github
 **/node_modules
 **/.eslin*
+**/.eslintcache
+**/.ruff_cache
 **/cache
 **/docke*
 **/manualbuild.sh
@@ -14,4 +16,7 @@ Dockerfile
 **/medicalrecords
 **/yarn.lock
 **/readme.md
+**/health/nursing_react/build
+**/health/nursing_react/node_modules
+**/health/nursing_react/.next
 sessions/
