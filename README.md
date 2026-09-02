@@ -11,6 +11,7 @@ Sistema de administración de llamadas y tareas programadas para el sector de in
 - [Configuración con Podman](#configuración-con-podman)
 - [Secretos y Variables de Entorno Obligatorias](#secretos-y-variables-de-entorno-obligatorias)
 - [Desarrollo Local](#desarrollo-local)
+- [WebSockets (canales en tiempo real)](#websockets-canales-en-tiempo-real)
 - [API REST](#api-rest)
 - [Uso de la Aplicación](#uso-de-la-aplicación)
 - [Configuración de Hardware](#configuración-de-hardware)
@@ -71,6 +72,15 @@ El sistema soporta tres configuraciones para la señal de los pulsadores:
 | Base de Datos | PostgreSQL 16 |
 | Broker Mensajería | Redis, Mosquitto (MQTT) |
 | Contenedores | Podman |
+
+> [!WARNING]
+> **No subir `redis-py` a la rama 8.x.** El channel layer (`channels_redis
+> 4.x`) está escrito y testeado contra `redis-py` 5.x. Con `redis-py` 8.x, el
+> `receive()` de los consumers hace `BRPOP` con timeout de 5s y `redis-py` 8
+> convierte la respuesta `nil` al expirar en `TimeoutError` (en vez de `None`),
+> matando la conexión WebSocket cada ~5s. La restricción `redis>=5.0,<6` está
+> fijada en `health/requirements.txt`. Si alguna build la rompe, se reintroduce
+> el síntoma de "timeouts de Redis cada 5s".
 
 ---
 
@@ -245,8 +255,17 @@ python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
+# runserver tiene autoreload, ideal para desarrollo local
 python manage.py runserver 0.0.0.0:8000
 ```
+
+> [!NOTE]
+> En el entorno de Podman el servidor corre con **daphne** (ver
+> `health/entrypoint.sh`), que **no tiene autoreload**. Para que los cambios
+> en código Python (`consumer.py`, vistas, etc.) surtan efecto en el pod hay
+> que reiniciarlo:
+> `podman restart health-pod-app`. Los templates y estáticos
+> (`collectstatic --clear`) se recopilan en el arranque.
 
 ### Frontend React
 
@@ -284,10 +303,40 @@ CHANNEL_LAYERS = {
 
 ### Simulación de Llamadas
 
-Para pruebas sin hardware, accede a:
+Para pruebas sin hardware, abre en el navegador:
 ```
 http://localhost:8000/nursing/rooms
 ```
+
+> [!IMPORTANT]
+> El simulador se conecta al WebSocket de llamadas (`/ws/callData/`), que
+> **requiere autenticación por JWT**. El token se toma del `access_token`
+> guardado en `localStorage` (si ya iniciaste sesión en el board React en el
+> mismo navegador) o, si hay una sesión Django autenticada, de un `meta tag`
+> generado por el backend. Si no hay token, la conexión se rechaza con el
+> código de cierre `4401` y la llamada no llega. Asegurate de haber iniciado
+> sesión antes de usar el simulador.
+
+---
+
+## WebSockets (canales en tiempo real)
+
+El backend expone tres canales WebSocket que consumen los componentes React y
+el simulador de pulsadores. **Todos requieren un JWT válido** pasado como
+parámetro de query string: `ws://host/ws/<canal>/?token=<access_token>`.
+
+| Canal | Ruta | Uso |
+|-------|------|-----|
+| App board | `/ws/appData/` | Estado completo de camas, llamadas y tareas |
+| Llamadas | `/ws/callData/` | Llamadas de pulsadores (simulador + hardware) |
+| Tareas | `/ws/taskData/` | Programación y estado de tareas |
+
+**Autenticación**: el `consumer.py` extrae el token de `?token=` y lo valida
+contra la firma JWT del backend (ver `nursing/ws_auth.py`). Si falta o es
+inválido, cierra con código `4401`/`4402` respectivamente. El frontend React
+maneja esto automáticamente: lee el `access_token` de `localStorage` (el que
+guarda `/api/auth/login`) y lo agrega a la URL del socket, con reconexión
+automática y refresco de token vía `/api/auth/refresh`.
 
 ---
 
@@ -297,20 +346,36 @@ La API REST está disponible en `/api/`.
 
 ### Autenticación
 
-| Endpoint | Método | Descripción |
-|----------|--------|-------------|
-| `/api/auth/login` | POST | Iniciar sesión (retorna tokens JWT) |
-| `/api/auth/register` | POST | Registrar usuario |
-| `/api/auth/logout` | POST | Cerrar sesión |
-| `/api/auth/refresh` | POST | Refrescar token |
+| Endpoint | Método | Autenticación | Descripción |
+|----------|--------|---------------|-------------|
+| `/api/auth/login` | POST | pública | Iniciar sesión (retorna tokens JWT `access` + `refresh`) |
+| `/api/auth/refresh` | POST | pública | Refrescar el token de acceso con el de refresco |
+| `/api/auth/register` | POST | JWT | Registrar usuario |
+| `/api/auth/logout` | POST | JWT | Cerrar sesión |
+| `/api/users/me` | GET | JWT | Datos del usuario autenticado |
 
 ### Recursos
 
 | Endpoint | Método | Descripción |
 |----------|--------|-------------|
+| `/api/app/load` | GET | Carga inicial de la aplicación (beds, calls, tasks) |
 | `/api/rooms` | GET | Obtener habitaciones |
-| `/api/app/load` | GET | Carga inicial de la aplicación |
-| `/api/events` | GET | Listar todos los eventos |
+| `/api/beds` | GET | Listar camas |
+| `/api/beds` | POST | Crear cama |
+| `/api/beds/{id}` | PUT | Actualizar cama |
+| `/api/beds/{id}` | GET | Ver cama específica |
+| `/api/beds/vacate` | POST | Liberar / desocupar una cama |
+| `/api/patients` | GET | Listar pacientes |
+| `/api/tasks` | GET | Listar tareas |
+| `/api/tasks` | POST | Crear tarea |
+| `/api/tasks/{id}` | PUT | Actualizar tarea |
+| `/api/tasks/{id}` | GET | Ver tarea específica |
+| `/api/tasks/{id}/complete` | POST | Marcar tarea como cumplida |
+| `/api/tasks/{id}` | DELETE | Eliminar tarea |
+| `/api/calls` | GET | Listar llamadas |
+| `/api/calls/{id}/answer` | POST | Responder / cancelar llamada |
+| `/api/calls/{id}/close` | POST | Cerrar llamada con motivo/respuesta |
+| `/api/events` | GET | Listar eventos del sistema |
 | `/api/events/{id}` | GET | Ver evento específico |
 
 ---
@@ -341,7 +406,7 @@ La API REST está disponible en `/api/`.
 
 #### Marcar Tarea como Cumplida
 
-有两种方式:
+Hay dos formas de marcar una tarea como cumplida:
 1. **Manual**: Ingresa una fecha/hora pasada en "Efectivización de la Tarea" y presiona "Guardar Edición"
 2. **Rápido**: Botón "Recién Cumplida" (marca con hora actual)
 
