@@ -6,8 +6,7 @@
   Author: gottigjavier@gmail.com
 */
 
-// Atención: por el momento se utiliza un pin para cada botón de cama, lo que restringe a un número máximo de 3.
-// Se puede extender a 7 camas más botón de anulación (2³) si utilizamos cada pin como bit de un sistema binario.
+// Utilizando cada pin como bit de un sistema binario se puede utilizar 000 como estado de reposo, 111 como cancelación de llamada y las otras 6 combinaciones como identificadores de cama.
 // Entonces, cada cable de señal que proviene del botón puede disgregarse en bits = 1 y según la combinación enviar el json.
 
 #include "defines.h"
