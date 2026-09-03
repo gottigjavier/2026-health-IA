@@ -68,5 +68,76 @@
 }
 
 .cshdw:hover {
-    box-shadow: 0 12px 16px 0 rgba(0,0,0,0.24), 0 17px 50px 0 rgba(0,0,0,0.19);
+    box-shadow: 0 12px 16px 0 rgba(182, 182, 182, 0.24), 0 17px 50px 0 rgba(141, 119, 119, 0.19);
+}
+
+/* ============================================================
+   OP2 · Gema pulida con retoque de saturación (calls).
+   - active   → ROJO rubí (matiz 0° conservado, saturación altísima
+                y luminosidad ajustada para que brille como gema).
+   - answered → GRIS (matiz neutro CONSERVADO: la semántica de
+                "respondida = gris" NO se toca; solo se le da
+                brillo/perlado mediante saturación/luminosidad).
+   Usamos .call.active/.call.answered (especificidad 0,2,0) para
+   ganarle a las reglas .active/.answered genéricas de calls-list.css.
+   ============================================================ */
+.call.active,
+.call.answered {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    box-shadow:
+        inset 0 1px 0 hsla(0, 0%, 100%, .55),
+        inset 0 -2px 6px hsla(0, 0%, 0%, .18),
+        0 8px 16px 0 rgba(0, 0, 0, .2),
+        0 6px 20px 0 rgba(0, 0, 0, .19);
+}
+
+.call.active::before,
+.call.answered::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+        radial-gradient(130% 85% at 14% 6%, hsla(0, 0%, 100%, .4), transparent 52%),
+        radial-gradient(90% 70% at 88% 96%, hsla(0, 0%, 100%, .14), transparent 55%);
+    mix-blend-mode: screen;
+    pointer-events: none;
+}
+
+/* active → ROJO (rubí): matiz 0° intacto, altísima saturación/luz */
+.call.active {
+    background-image:
+        linear-gradient(180deg, hsl(0, 100%, 50%) 0%,
+            hsl(0, 100%, 68%) 47%,
+            hsl(0, 82%, 52%) 53%,
+            hsl(0, 100%, 46%) 100%);
+}
+
+/* answered → GRIS (semántica correcta, brillo perlado) */
+.call.answered {
+    color: hsl(0, 20%, 92%);
+    background-image:
+        linear-gradient(180deg, hsl(0, 6%, 64%) 0%,
+            hsl(0, 8%, 72%) 47%,
+            hsl(0, 4%, 58%) 53%,
+            hsl(0, 6%, 56%) 100%);
+}
+
+.call.active:hover,
+.call.answered:hover {
+    box-shadow:
+        inset 0 1px 0 hsla(0, 0%, 100%, .65),
+        inset 0 -2px 6px hsla(0, 0%, 0%, .12),
+        0 0 0 1px hsla(0, 0%, 100%, .16),
+        0 0 18px hsla(0, 0%, 100%, .26),
+        0 12px 16px 0 rgba(0, 0, 0, .24),
+        0 17px 50px 0 rgba(0, 0, 0, .19);
+    transform: translateY(-1px);
+}
+
+.call.active,
+.call.answered {
+    transition: box-shadow .35s ease, transform .25s ease;
 }

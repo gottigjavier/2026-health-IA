@@ -143,3 +143,80 @@ html{
 .tshdw:hover {
     box-shadow: 0 12px 16px 0 rgba(0,0,0,0.24), 0 17px 50px 0 rgba(0,0,0,0.19);
 }
+
+/* ============================================================
+   OP2 · Gema pulida con retoque de saturación (tasks).
+   Mantiene el matiz semántico de cada estado (pronto=celeste,
+   pasado=azul, luego=gris) pero lo "tonifica" hacia una gema:
+   saturación/luminosidad ajustadas + capa de luz.
+   ============================================================ */
+.later,
+.soon,
+.passed {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    box-shadow:
+        inset 0 1px 0 hsla(0, 0%, 100%, .5),
+        inset 0 -2px 6px hsla(0, 0%, 0%, .16),
+        0 8px 16px 0 rgba(0, 0, 0, .2),
+        0 6px 20px 0 rgba(0, 0, 0, .19);
+}
+
+.later::before,
+.soon::before,
+.passed::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+        radial-gradient(130% 85% at 14% 6%, hsla(0, 0%, 100%, .4), transparent 52%),
+        radial-gradient(90% 70% at 88% 96%, hsla(0, 0%, 100%, .14), transparent 55%);
+    mix-blend-mode: screen;
+    pointer-events: none;
+}
+
+/* Retoque de saturación/luminosidad hacia "gema", sin cambiar el matiz */
+.later {
+    background-image:
+        linear-gradient(180deg, hsl(0, 0%, 66%) 0%,
+            hsl(0, 0%, 72%) 47%,
+            hsl(0, 3%, 58%) 53%,
+            hsl(0, 6%, 60%) 100%);
+}
+
+.soon {
+    background-image:
+        linear-gradient(180deg, hsl(195, 100%, 52%) 0%,
+            hsl(195, 100%, 72%) 47%,
+            hsl(195, 78%, 58%) 53%,
+            hsl(195, 100%, 60%) 100%);
+}
+
+.passed {
+    background-image:
+        linear-gradient(180deg, hsl(240, 100%, 52%) 0%,
+            hsl(240, 100%, 72%) 47%,
+            hsl(240, 80%, 56%) 53%,
+            hsl(240, 100%, 58%) 100%);
+}
+
+.later:hover,
+.soon:hover,
+.passed:hover {
+    box-shadow:
+        inset 0 1px 0 hsla(0, 0%, 100%, .65),
+        inset 0 -2px 6px hsla(0, 0%, 0%, .12),
+        0 0 0 1px hsla(0, 0%, 100%, .14),
+        0 0 16px hsla(0, 0%, 100%, .26),
+        0 12px 16px 0 rgba(0, 0, 0, .24),
+        0 17px 50px 0 rgba(0, 0, 0, .19);
+    transform: translateY(-1px);
+}
+
+.later,
+.soon,
+.passed {
+    transition: box-shadow .35s ease, transform .25s ease;
+}
