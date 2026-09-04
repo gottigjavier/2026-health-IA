@@ -18,6 +18,20 @@
 # Variables de entorno — NUNCA se commitean (contienen secretos).
 # Cubre .env, .env.example, .env.local, .env.<entorno>, etc.
 **/.env*
+
+# Secretos de certificados (mTLS). Las claves y certificados de la PKI
+# NO se commitean nunca. generate.sh (el script) SÍ se versiona.
+health/mosquitto/certs/*.key
+health/mosquitto/certs/*.crt
+health/mosquitto/certs/*.csr
+health/mosquitto/certs/*.pem
+health/mosquitto/certs/*.p12
+health/mosquitto/certs/*.pfx
+
+# Contraseñas de usuarios del broker Mosquitto (mosquitto_passwd).
+# Es un secreto y además fue creado por el contenedor con UID ajeno al host,
+# por lo que javier no puede leerlo — JJ se cae al hacer snapshot si intenta abrirlo.
+health/mosquitto/config/passwd
 /hltenv
 .DS_Store
 

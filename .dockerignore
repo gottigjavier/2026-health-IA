@@ -19,4 +19,10 @@ Dockerfile
 **/health/nursing_react/build
 **/health/nursing_react/node_modules
 **/health/nursing_react/.next
+**/health/mosquitto/certs/*.key
+**/health/mosquitto/certs/*.crt
+**/health/mosquitto/certs/*.csr
+**/health/mosquitto/certs/*.pem
+**/health/mosquitto/certs/*.p12
+**/health/mosquitto/certs/*.pfx
 sessions/

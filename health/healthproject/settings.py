@@ -274,6 +274,12 @@ CALL_SECRET_KEY = env.str(
     default="CHANGE-ME-IN-PRODUCTION",
 )
 
+# MQTT TLS Configuration
+MQTT_TLS_CA_CERT = env.str("MQTT_TLS_CA_CERT", default="/app/certs/ca.crt")
+MQTT_TLS_CLIENT_CERT = env.str("MQTT_TLS_CLIENT_CERT", default="/app/certs/client-django.crt")
+MQTT_TLS_CLIENT_KEY = env.str("MQTT_TLS_CLIENT_KEY", default="/app/certs/client-django.key")
+MQTT_PORT = env.int("MQTT_PORT", default=8883)
+
 """ 
 print("BASE_DIR: ", BASE_DIR)
 print("STATICFILES_DIRS: ", STATICFILES_DIRS)

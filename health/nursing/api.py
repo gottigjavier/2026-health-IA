@@ -50,6 +50,7 @@ from .modular_views.beds.beds_serialized import serial_beds
 from .utils.dates import dt_parse, dt_now, dt_serialize
 import paho.mqtt.client as mqtt
 import json
+import ssl
 import jwt as pyjwt
 from urllib.parse import parse_qs
 from django.views.decorators.csrf import csrf_exempt
@@ -67,12 +68,22 @@ def send_mqtt_cancel_call(bed_id_str):
     """
     try:
         client = mqtt.Client()
-        client.connect("mosquitto", 1883)
+        client.tls_set(
+            ca_certs=settings.MQTT_TLS_CA_CERT,
+            certfile=settings.MQTT_TLS_CLIENT_CERT,
+            keyfile=settings.MQTT_TLS_CLIENT_KEY,
+            tls_version=ssl.PROTOCOL_TLS,
+        )
+        client.tls_insecure_set(False)
+        client.connect("mosquitto", settings.MQTT_PORT)
 
         # Preparar mensaje de cancelación
+        # Field is "bed" (matching the rest of the protocol) — using "id" here
+        # caused the worker's _on_message to hit a KeyError on data["bed"] and
+        # skip the cancel broadcast to the panel on every checkout.
         message = {
             "state": False,
-            "id": bed_id_str,
+            "bed": bed_id_str,
             "key": settings.CALL_SECRET_KEY,
         }
 
@@ -1101,11 +1112,14 @@ def get_rooms(request):
 @api.get("/app/load", auth=jwtauth)
 def initial_load(request):
     from .modular_views.app.app_load import load
-    from .modular_views.calls.call_mqtt import mqtt_service
     from .modular_views.tasks.task_ws import tasks_ws_update
     from .modular_views.app.app_ws_update import app_ws_update
 
-    mqtt_service()
+    # NOTE: mqtt_service() is NO LONGER started here. Since the dedicated
+    # 'mqtt_worker' management command (run in its own container) now owns the
+    # single MQTT subscription, starting it per /app/load request would create
+    # duplicate subscribers that process every message multiple times.
+
     tasks_ws_update()
     app_ws_update()
 

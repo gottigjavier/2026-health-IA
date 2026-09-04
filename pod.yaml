@@ -28,11 +28,14 @@ spec:
     - name: mosquitto
       image: docker.io/eclipse-mosquitto:2.0
       ports:
-        - containerPort: 1883
-          hostPort: 1883
+        - containerPort: 8883
+          hostPort: 8883
       volumeMounts:
-        - mountPath: /mosquitto/config/mosquitto.conf
-          name: mosquitto-conf
+        - mountPath: /mosquitto/config
+          name: mosquitto-config
+        - mountPath: /mosquitto/certs
+          name: mosquitto-certs
+          readOnly: true
 
     - name: app
       image: localhost/health-app:latest  # imagen buildeada localmente
@@ -48,19 +51,72 @@ spec:
           value: "postgres"
         - name: POSTGRES_PASSWORD
           value: "postgres"
+        - name: MQTT_TLS_CA_CERT
+          value: "/app/certs/ca.crt"
+        - name: MQTT_TLS_CLIENT_CERT
+          value: "/app/certs/client-django.crt"
+        - name: MQTT_TLS_CLIENT_KEY
+          value: "/app/certs/client-django.key"
+        - name: MQTT_PORT
+          value: "8883"
       volumeMounts:
         - mountPath: /health
           name: app-data
+        - mountPath: /app/certs
+          name: mosquitto-certs
+          readOnly: true
+
+    # Dedicated MQTT subscriber worker. The single process that owns the
+    # mqtt/call/ subscription via `python manage.py mqtt_worker` (blocking
+    # loop_forever). Decouples MQTT consumption from the HTTP/daphne server and
+    # guarantees exactly ONE subscriber (the old design started one on every
+    # /app/load request, accumulating duplicate subscribers that each processed
+    # every message).
+    - name: app-mqtt
+      image: localhost/health-app:latest  # misma imagen que el servidor
+      # Use sh -c so the image's CMD (["./entrypoint.sh"]) is treated as $0 and
+      # ignored, instead of being appended as args (which would otherwise run
+      # "python manage.py mqtt_worker ./entrypoint.sh").
+      command: ["/bin/sh", "-c", "python manage.py mqtt_worker"]
+      env:
+        - name: POSTGRES_DB
+          value: "db"
+        - name: POSTGRES_DB_NAME
+          value: "db"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "postgres"
+        - name: CALL_SECRET_KEY
+          value: "this&is$a$key&to?prevent?hacking"
+        - name: MQTT_TLS_CA_CERT
+          value: "/app/certs/ca.crt"
+        - name: MQTT_TLS_CLIENT_CERT
+          value: "/app/certs/client-django.crt"
+        - name: MQTT_TLS_CLIENT_KEY
+          value: "/app/certs/client-django.key"
+        - name: MQTT_PORT
+          value: "8883"
+      volumeMounts:
+        - mountPath: /health
+          name: app-data
+        - mountPath: /app/certs
+          name: mosquitto-certs
+          readOnly: true
 
   volumes:
     - name: db-data
       hostPath:
         path: ./health/data/db
         type: DirectoryOrCreate
-    - name: mosquitto-conf
+    - name: mosquitto-config
       hostPath:
-        path: ./health/mosquitto/mosquitto.conf
-        type: File
+        path: ./health/mosquitto/config
+        type: DirectoryOrCreate
+    - name: mosquitto-certs
+      hostPath:
+        path: ./health/mosquitto/certs
+        type: Directory
     - name: app-data
       hostPath:
         path: ./health
