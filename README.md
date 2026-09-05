@@ -70,7 +70,7 @@ El sistema soporta tres configuraciones para la señal de los pulsadores:
 | Backend | Django 5, Django Ninja (API REST) |
 | WebSockets | Django Channels |
 | Base de Datos | PostgreSQL 16 |
-| Broker Mensajería | Redis, Mosquitto (MQTT) |
+| Broker Mensajería | Redis, Mosquitto (MQTT over TLS/mTLS) |
 | Contenedores | Podman |
 
 > [!WARNING]
@@ -234,7 +234,7 @@ no las exige.
 Necesitas tener corriendo:
 - PostgreSQL (puerto 5432)
 - Redis (puerto 6379)
-- Mosquitto MQTT (puerto 1883)
+- Mosquitto MQTT (puerto 8883, TLS/mTLS)
 
 ```bash
 # PostgreSQL
@@ -462,13 +462,13 @@ El archivo CSV exportado contiene las columnas:
 La aplicación espera mensajes en formato JSON:
 
 ```json
-{"state": true, "id": "12,3", "key": "<CALL_SECRET_KEY>"}
+{"state": true, "bed": "12,3", "key": "<CALL_SECRET_KEY>"}
 ```
 
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | `state` | Boolean | true = llamada, false = cancelación |
-| `id` | String | "habitación,cama" (ej: "12,3"). Para cancelación: "12,0" |
+| `bed` | String | "habitación,cama" (ej: "12,3"). Para cancelación: "12,0" |
 | `key` | String | Secreto compartido. **Debe ser idéntico** a `CALL_SECRET_KEY` configurado en el backend. No es un campo de contenido: el backend lo valida contra `settings.CALL_SECRET_KEY` y **rechaza (aborta) cualquier mensaje que no lo tenga**. |
 
 > [!IMPORTANT]
@@ -482,6 +482,64 @@ Edita el archivo `defines.h` para configurar:
 - SSID de la red WiFi
 - Contraseña WiFi
 - IP del servidor
+
+### Cifrado TLS/mTLS para MQTT
+
+> [!NOTE]
+> El tráfico MQTT viaja **cifrado con TLS** y autenticado por **certificados
+> mutuos (mTLS)**: el broker solo acepta clientes que presenten un certificado
+> firmado por la CA del sistema. El listener inseguro (1883) está deshabilitado
+> por defecto — el broker escucha únicamente en el puerto **8883** con TLS.
+
+#### Generación de certificados
+
+Las claves se generan ejecutando `health/mosquitto/certs/generate.sh`
+(requiere `openssl` instalado):
+
+```bash
+cd health/mosquitto/certs
+chmod +x generate.sh
+./generate.sh
+```
+
+El script genera (y **reutiliza** los que ya existen y no expiran en menos de 30 días):
+
+| Archivo | Rol | Vigencia | Detalle |
+|---------|-----|----------|---------|
+| `ca.crt` / `ca.key` | Autoridad Certificadora (CA) | 10 años | Firma todos los certificados del sistema |
+| `server.crt` / `server.key` | Certificado del broker Mosquitto | 5 años | RSA 2048, con SAN para `mosquitto`, `localhost`, `127.0.0.1` |
+| `client-esp-room1.crt` / `.key` | Certificado de cliente del pulsador ESP8266 | 5 años | **EC P-256** (ver nota abajo) |
+| `client-django.crt` / `.key` | Certificado de cliente del backend Django | 5 años | RSA |
+
+> [!IMPORTANT]
+> El certificado del ESP8266 usa **EC P-256** y no RSA a propósito: el stack
+> secundario de BearSSL (~6 KB) se desborda durante el handshake mTLS al firmar
+> con RSA-2048. ECDSA usa mucho menos stack y entra. La CA y el server siguen
+> siendo RSA — un cliente EC firmado por una CA RSA es perfectamente válido.
+
+#### Copiado de claves al firmware
+
+Editá `health/mosquitto/HealthMQTTClient/defines.h` y pegá el contenido de los
+certificados generados en las variables correspondientes:
+
+| Variable en `defines.h` | Origen |
+|--------------------------|--------|
+| `caCert` | `health/mosquitto/certs/ca.crt` |
+| `clientCert` | `health/mosquitto/certs/client-esp-room1.crt` |
+| `clientKey` | `health/mosquitto/certs/client-esp-room1.key` |
+
+Cada variable espera el contenido entre `-----BEGIN CERTIFICATE-----` /
+`-----END CERTIFICATE-----` (o `-----BEGIN EC PRIVATE KEY-----` /
+`-----END EC PRIVATE KEY-----` para `clientKey`), dentro del raw string
+`R"EOF( ... )EOF"`. Los placeholders actuales del archivo (`REEMPLAZAR con el
+contenido de...`) indican exactamente de dónde sale cada valor.
+
+> [!CAUTION]
+> Los archivos `*.key` y `*.crt` de `certs/` ya están en `.gitignore`, pero
+> **`defines.h` NO lo está**: una vez que pegás las claves reales, el archivo
+> pasa a contener secretos PKI. **Nunca lo commitees con valores reales.** Si
+> `clientKey` se filtra, cualquiera puede hacerse pasar por el pulsador de la
+> habitación.
 
 ---
 
