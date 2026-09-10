@@ -1,5 +1,14 @@
 # Health-IA — Sistema de Gestión de Llamadas y Tareas para Internación
 
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)
+![Django](https://img.shields.io/badge/Django-5-092E20?style=flat-square&logo=django&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=black)
+![Bootstrap](https://img.shields.io/badge/Bootstrap-5-7952B3?style=flat-square&logo=bootstrap&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis&logoColor=white)
+![MQTT](https://img.shields.io/badge/MQTT-Mosquitto_2-660066?style=flat-square&logo=mqtt&logoColor=white)
+![Podman](https://img.shields.io/badge/Podman-6-892CA0?style=flat-square&logo=podman&logoColor=white)
+
 Sistema de administración de llamadas y tareas programadas para el sector de internación de hospitales o clínicas. La aplicación permite gestionar camas, tareas y llamadas desde cualquier punto de la red mediante una interfaz web.
 
 ## Tabla de Contenidos
@@ -21,6 +30,7 @@ Sistema de administración de llamadas y tareas programadas para el sector de in
 ## Descripción General
 
 La aplicación recibe y administra:
+
 - **Llamadas**: Provenientes de botones pulsadores en cada cama y botones de cancelación por habitación
 - **Tareas**: Programadas para el personal de salud (médicos, enfermeros, administrativos)
 
@@ -31,7 +41,7 @@ El acceso es decentralizado: cualquier usuario con credenciales puede acceder de
 El sistema soporta tres configuraciones para la señal de los pulsadores:
 
 | Modo | Descripción |
-|------|-------------|
+| ------ | ------------- |
 | Cableado | Señal completa por cable |
 | Mixto | Cable hasta el nodo de habitación, Wi-Fi hasta el servidor |
 | Inalámbrico | Placa Wi-Fi integrada en cada pulsador con batería interna |
@@ -39,6 +49,16 @@ El sistema soporta tres configuraciones para la señal de los pulsadores:
 ---
 
 ## Arquitectura
+
+### Diagrama interactivo
+
+[**health-architecture.html**](./health-architecture.html) — diagrama SVG autocontenido de la arquitectura completa (componentes, flujos de datos y rutas de tiempo real / MQTT). Abrelo descargando el archivo y abriéndolo en el navegador (GitHub muestra el HTML como código, no lo renderiza como página).
+
+### Vista previa (dark)
+
+![Arquitectura Health-IA — dark](./health-architecture.visual-check.1440x900.dark.png)
+
+Vista previa renderizada de `health-architecture.html` en tema oscuro (1440×900). La versión clara y otras resoluciones están disponibles junto al archivo HTML en el repositorio.
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
@@ -65,7 +85,7 @@ El sistema soporta tres configuraciones para la señal de los pulsadores:
 ## Tecnologías
 
 | Capa | Tecnología |
-|------|------------|
+| ------ | ------------ |
 | Frontend | React 18, Bootstrap, WebSockets |
 | Backend | Django 5, Django Ninja (API REST) |
 | WebSockets | Django Channels |
@@ -119,7 +139,7 @@ health/
 ### Archivos de Configuración
 
 | Archivo | Descripción |
-|---------|-------------|
+| --------- | ------------- |
 | `pod.yaml` | Definición del Pod Kubernetes |
 | `Dockerfile` | Imagen de la aplicación |
 | `.env` | Variables de entorno |
@@ -205,7 +225,7 @@ Si faltan, **el arranque falla con un mensaje claro** en lugar de usar valores
 por defecto inseguros que estarían hardcodeados en el código versionado.
 
 | Variable | Obligatoria | Descripción |
-|----------|-------------|-------------|
+| ---------- | ------------- | ------------- |
 | `SECRET_KEY` | Sí | Clave de firma de Django (firma sesiones, JWTs, tokens CSRF). Debe ser única y secreta por entorno. |
 | `CALL_SECRET_KEY` | No (default inseguro) | Secreto compartido que autentica los mensajes de los pulsadores (WebSocket `callData` y MQTT `mqtt/call/`). Debe coincidir con el valor configurado en el firmware de los pulsadores. **En producción es OBLIGATORIO definirlo** con un valor sólido y único. |
 | `DJANGO_SUPERUSER_USERNAME` | Solo primer arranque | Username del superusuario inicial. |
@@ -232,6 +252,7 @@ no las exige.
 ### Servicios Externos Requeridos
 
 Necesitas tener corriendo:
+
 - PostgreSQL (puerto 5432)
 - Redis (puerto 6379)
 - Mosquitto MQTT (puerto 8883, TLS/mTLS)
@@ -304,6 +325,7 @@ CHANNEL_LAYERS = {
 ### Simulación de Llamadas
 
 Para pruebas sin hardware, abre en el navegador:
+
 ```
 http://localhost:8000/nursing/rooms
 ```
@@ -326,7 +348,7 @@ el simulador de pulsadores. **Todos requieren un JWT válido** pasado como
 parámetro de query string: `ws://host/ws/<canal>/?token=<access_token>`.
 
 | Canal | Ruta | Uso |
-|-------|------|-----|
+| ------- | ------ | ----- |
 | App board | `/ws/appData/` | Estado completo de camas, llamadas y tareas |
 | Llamadas | `/ws/callData/` | Llamadas de pulsadores (simulador + hardware) |
 | Tareas | `/ws/taskData/` | Programación y estado de tareas |
@@ -347,7 +369,7 @@ La API REST está disponible en `/api/`.
 ### Autenticación
 
 | Endpoint | Método | Autenticación | Descripción |
-|----------|--------|---------------|-------------|
+| ---------- | -------- | --------------- | ------------- |
 | `/api/auth/login` | POST | pública | Iniciar sesión (retorna tokens JWT `access` + `refresh`) |
 | `/api/auth/refresh` | POST | pública | Refrescar el token de acceso con el de refresco |
 | `/api/auth/register` | POST | JWT | Registrar usuario |
@@ -357,7 +379,7 @@ La API REST está disponible en `/api/`.
 ### Recursos
 
 | Endpoint | Método | Descripción |
-|----------|--------|-------------|
+| ---------- | -------- | ------------- |
 | `/api/app/load` | GET | Carga inicial de la aplicación (beds, calls, tasks) |
 | `/api/rooms` | GET | Obtener habitaciones |
 | `/api/beds` | GET | Listar camas |
@@ -391,7 +413,7 @@ La API REST está disponible en `/api/`.
 ### Colores de Estado
 
 | Color | Significado |
-|-------|-------------|
+| ------- | ------------- |
 | Gris | Cama Desocupada |
 | Verde | Ocupada, sin llamadas ni tareas pendientes |
 | Azul | Tarea pendiente con tiempo cumplido |
@@ -407,6 +429,7 @@ La API REST está disponible en `/api/`.
 #### Marcar Tarea como Cumplida
 
 Hay dos formas de marcar una tarea como cumplida:
+
 1. **Manual**: Ingresa una fecha/hora pasada en "Efectivización de la Tarea" y presiona "Guardar Edición"
 2. **Rápido**: Botón "Recién Cumplida" (marca con hora actual)
 
@@ -444,14 +467,14 @@ Para acceder a los eventos del sistema:
 #### Formato de Exportación
 
 El archivo CSV exportado contiene las columnas:
+
 - Fecha/Hora
 - Usuario
 - Acción
 - Antes
 - Después
 
->Para el uso en un Centro de Enfermería con una sola computadora, la App permite diferenciar al usuario que inica sesión (Jefe de Enfermería) del que ingresa acciones como *ocupar cama* o *nueva tarea*, etc. 
-
+>Para el uso en un Centro de Enfermería con una sola computadora, la App permite diferenciar al usuario que inica sesión (Jefe de Enfermería) del que ingresa acciones como *ocupar cama* o *nueva tarea*, etc.
 
 ---
 
@@ -466,7 +489,7 @@ La aplicación espera mensajes en formato JSON:
 ```
 
 | Campo | Tipo | Descripción |
-|-------|------|-------------|
+| ------- | ------ | ------------- |
 | `state` | Boolean | true = llamada, false = cancelación |
 | `bed` | String | "habitación,cama" (ej: "12,3"). Para cancelación: "12,0" |
 | `key` | String | Secreto compartido. **Debe ser idéntico** a `CALL_SECRET_KEY` configurado en el backend. No es un campo de contenido: el backend lo valida contra `settings.CALL_SECRET_KEY` y **rechaza (aborta) cualquier mensaje que no lo tenga**. |
@@ -479,6 +502,7 @@ La aplicación espera mensajes en formato JSON:
 ### Configuración ESP8266 (NodeMCU)
 
 Edita el archivo `defines.h` para configurar:
+
 - SSID de la red WiFi
 - Contraseña WiFi
 - IP del servidor
@@ -505,7 +529,7 @@ chmod +x generate.sh
 El script genera (y **reutiliza** los que ya existen y no expiran en menos de 30 días):
 
 | Archivo | Rol | Vigencia | Detalle |
-|---------|-----|----------|---------|
+| --------- | ----- | ---------- | --------- |
 | `ca.crt` / `ca.key` | Autoridad Certificadora (CA) | 10 años | Firma todos los certificados del sistema |
 | `server.crt` / `server.key` | Certificado del broker Mosquitto | 5 años | RSA 2048, con SAN para `mosquitto`, `localhost`, `127.0.0.1` |
 | `client-esp-room1.crt` / `.key` | Certificado de cliente del pulsador ESP8266 | 5 años | **EC P-256** (ver nota abajo) |
@@ -523,7 +547,7 @@ Editá `health/mosquitto/HealthMQTTClient/defines.h` y pegá el contenido de los
 certificados generados en las variables correspondientes:
 
 | Variable en `defines.h` | Origen |
-|--------------------------|--------|
+| -------------------------- | -------- |
 | `caCert` | `health/mosquitto/certs/ca.crt` |
 | `clientCert` | `health/mosquitto/certs/client-esp-room1.crt` |
 | `clientKey` | `health/mosquitto/certs/client-esp-room1.key` |
@@ -547,6 +571,7 @@ contenido de...`) indican exactamente de dónde sale cada valor.
 
 - **Panel Admin Django**: `http://localhost:8000/admin`
 - **Crear Superusuario**:
+
   ```bash
   cd health
   python manage.py createsuperuser

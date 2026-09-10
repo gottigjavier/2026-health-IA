@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Health-IA — Sistema de Gestión de Llamadas y Tareas",
+    "output": "health-architecture.html",
+    "quality_profile": "showcase",
+    "viewBox": [1020, 500],
+    "views": [
+      { "id": "primary-path", "label": "Request principal", "focus": ["users", "frontend", "backend", "db"], "note": "Flujo principal de usuario: React → Django API → PostgreSQL" },
+      { "id": "realtime-path", "label": "Tiempo real", "focus": ["frontend", "backend", "redis"], "note": "WebSockets para estado en tiempo real vía Redis Channel Layer" },
+      { "id": "mqtt-path", "label": "Hardware MQTT", "focus": ["esp", "mosquitto", "backend", "certs"], "note": "Pulsadores ESP8266 vía MQTT over TLS y CA PKI mTLS" }
+    ]
+  },
+  "components": [
+    { "id": "users", "type": "external", "label": "Usuarios", "sublabel": "Navegador web", "pos": [40, 250], "size": [130, 60] },
+    { "id": "frontend", "type": "frontend", "label": "React 18", "sublabel": "SPA + Bootstrap", "pos": [280, 250], "size": [140, 60], "tag": "Dark Mode" },
+    { "id": "backend", "type": "backend", "label": "Django 5", "sublabel": "Ninja + Channels", "pos": [520, 250], "size": [160, 60], "tag": "JWT + Daphne" },
+    { "id": "db", "type": "database", "label": "PostgreSQL 16", "sublabel": "Primary DB", "pos": [800, 250], "size": [140, 60] },
+    { "id": "redis", "type": "database", "label": "Redis", "sublabel": "Channel Layer", "pos": [560, 70], "size": [150, 60] },
+    { "id": "esp", "type": "external", "label": "ESP8266", "sublabel": "Pulsadores", "pos": [40, 420], "size": [130, 60], "tag": "client cert EC" },
+    { "id": "mosquitto", "type": "messagebus", "label": "Mosquitto", "sublabel": "MQTT :8883", "pos": [280, 420], "size": [140, 60], "tag": "TLS" },
+    { "id": "certs", "type": "security", "label": "CA PKI", "sublabel": "Certificados", "pos": [760, 420], "size": [140, 60], "tag": "openssl" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Podman Pod — hospital on-prem", "wraps": ["frontend", "backend", "db", "redis"] },
+    { "kind": "security-group", "label": "MQTT TLS/mTLS :8883", "wraps": ["mosquitto"] }
+  ],
+  "connections": [
+    { "id": "users-to-frontend", "from": "users", "to": "frontend", "label": "HTTPS", "variant": "emphasis" },
+    { "id": "frontend-to-backend", "from": "frontend", "to": "backend", "label": "REST + WS" },
+    { "id": "backend-to-db", "from": "backend", "to": "db", "label": "SQL" },
+    { "id": "backend-to-redis", "from": "backend", "to": "redis", "label": "Channel Layer", "variant": "dashed", "fromSide": "top", "toSide": "bottom" },
+    { "id": "esp-to-mosquitto", "from": "esp", "to": "mosquitto", "label": "MQTT JSON calls", "variant": "emphasis" },
+    { "id": "mosquitto-to-backend", "from": "mosquitto", "to": "backend", "label": "subscribe /api/calls", "fromSide": "top", "toSide": "bottom", "via": [[350, 380], [600, 380], [600, 340]] },
+    { "id": "certs-to-mosquitto", "from": "certs", "to": "mosquitto", "label": "mTLS verify", "variant": "security" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Frontend & Backend", "items": ["React 18 + Bootstrap SPA, dark mode", "Django 5 + Ninja (REST) + Channels", "Daphne ASGI · JWT · eventos antes/después"] },
+    { "dot": "violet", "title": "Tiempo Real", "items": ["Canales appData / callData / taskData", "Redis Channel Layer pub/sub", "Auth JWT en cada conexión WebSocket"] },
+    { "dot": "rose", "title": "Hardware MQTT", "items": ["ESP8266 pulsadores, MQTT TLS :8883", "CALL_SECRET_KEY compartida", "CA PKI mTLS (openssl)"] }
+  ]
+}
