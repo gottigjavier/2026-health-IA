@@ -11,6 +11,11 @@
 
 Sistema de administración de llamadas y tareas programadas para el sector de internación de hospitales o clínicas. La aplicación permite gestionar camas, tareas y llamadas desde cualquier punto de la red mediante una interfaz web.
 
+> [!WARNING]
+> Esta es una **versión de muestra**, creada para demostrar el estilo, la
+> calidad y la seguridad del código. La **versión estable más reciente** se
+> encuentra en un repositorio privado.
+
 ## Tabla de Contenidos
 
 - [Descripción General](#descripción-general)
@@ -52,11 +57,11 @@ El sistema soporta tres configuraciones para la señal de los pulsadores:
 
 ### Diagrama interactivo
 
-[**health-architecture.html**](./health-architecture.html) — diagrama SVG autocontenido de la arquitectura completa (componentes, flujos de datos y rutas de tiempo real / MQTT). Abrelo descargando el archivo y abriéndolo en el navegador (GitHub muestra el HTML como código, no lo renderiza como página).
+[**health-architecture.html**](./images/health-architecture.html) — diagrama SVG autocontenido de la arquitectura completa (componentes, flujos de datos y rutas de tiempo real / MQTT). Abrelo descargando el archivo y abriéndolo en el navegador (GitHub muestra el HTML como código, no lo renderiza como página).
 
 ### Vista previa (dark)
 
-![Arquitectura Health-IA — dark](./health-architecture.visual-check.1440x900.dark.png)
+![Arquitectura Health-IA — dark](./images/health-architecture.visual-check.1440x900.dark.png)
 
 Vista previa renderizada de `health-architecture.html` en tema oscuro (1440×900). La versión clara y otras resoluciones están disponibles junto al archivo HTML en el repositorio.
 
@@ -409,6 +414,20 @@ La API REST está disponible en `/api/`.
 1. Navega a `http://localhost:8000`
 2. Inicia sesión con tus credenciales
 3. Serás redirigido a `http://localhost:8000/nursing/home`
+
+### Capturas de Pantalla
+
+**Grilla de habitaciones completa**
+
+![Grilla de habitaciones completa](./images/health_01.png)
+
+**Solo habitaciones ocupadas**
+
+![Solo habitaciones ocupadas](./images/health_02.png)
+
+**Solo tareas**
+
+![Solo tareas](./images/health_03.png)
 
 ### Colores de Estado
 
